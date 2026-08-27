@@ -30,5 +30,5 @@ Es un gestor de tareas diseñado para el día a día del usuario común. Permite
 # Guía de Ejecución - Gestor de Tareas Personales
 
 1. Abrir una terminal y navegar hasta la carpeta raíz del proyecto
-2. Iniciar el servidor ejecutando 'go run main.go'
+2. Iniciar el servidor ejecutando `go run main.go`
 3. Verificar que aparezca el mensaje confirmando que el servidor esta escuchando
