@@ -23,6 +23,10 @@ Es un gestor de tareas diseñado para el día a día del usuario común. Permite
 ├── go.mod
 ├── main.go         # Servidor HTTP en Go
 ├── static/
+│   ├── css/
+│   │   ├── 404.css
+│   │   └── index.css
+│   ├── 404.html    # Pagina para errores 404
 │   └── index.html  # Página de presentación
 └── README.md       # Instrucciones de ejecución
 ```
