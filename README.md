@@ -63,6 +63,68 @@ my_sqlc_project/
 └── .env                      # Variables de entorno (credenciales de la DB local)
 ```
 
+## Persistencia
+
+Esta sección documenta cómo se diseñó y resolvió la capa de persistencia del proyecto.
+
+### Motor de base de datos y estrategia de acceso a datos
+
+- **PostgreSQL 16** corriendo en un contenedor Docker (`docker-compose.yml`), pensado para entornos de desarrollo y testing local.
+- El acceso a los datos **no usa un ORM**: se escribe SQL plano en `db/queries/users.sql`, y **[sqlc](https://sqlc.dev/)** genera automáticamente código Go type-safe a partir de esas queries y del esquema (`db/schema/schema.sql`). Esto da funciones Go con structs y parámetros tipados, evitando el uso de `interface{}` o mapeo manual de columnas.
+- El driver utilizado para conectarse a Postgres es **[pgx](https://github.com/jackc/pgx)** (vía su interfaz `database/sql`).
+
+### Modelo de datos
+
+Por el momento el esquema define una única entidad, `users`, que sienta las bases para las entidades de tareas, categorías y grupos que se incorporarán en próximas entregas:
+
+| Columna         | Tipo                        | Restricciones                                                        |
+|-----------------|------------------------------|-----------------------------------------------------------------------|
+| `id`            | `SERIAL`                     | `PRIMARY KEY`                                                         |
+| `handle`        | `VARCHAR(31)`                | `UNIQUE`, `NOT NULL`, debe estar en minúsculas y no puede estar vacío |
+| `display_name`  | `VARCHAR(63)`                | `NOT NULL`, no puede estar vacío                                      |
+| `email`         | `VARCHAR(255)`                | `UNIQUE`, `NOT NULL`, debe estar en minúsculas y no puede estar vacío |
+| `password_hash` | `VARCHAR(255)`                | `NOT NULL`, no puede estar vacío                                      |
+| `created_at`    | `TIMESTAMP WITH TIME ZONE`   | `DEFAULT CURRENT_TIMESTAMP`                                           |
+| `updated_at`    | `TIMESTAMP WITH TIME ZONE`   | `DEFAULT CURRENT_TIMESTAMP`                                           |
+
+**Decisiones de diseño:**
+
+- `handle` y `email` son `UNIQUE` porque identifican al usuario de forma inequívoca (nombre de usuario y correo, respectivamente).
+- Ambos se normalizan a minúsculas a nivel de base (`CHECK (... = lower(...))`) para evitar duplicados como `Juan` vs `juan`, y las queries de inserción/actualización aplican `LOWER()` antes de guardarlos.
+- Nunca se persiste la contraseña en texto plano: se guarda `password_hash`, y existe una query específica (`GetUserAuthByEmail`) que solo trae `id` y `password_hash`, para no exponer el resto de los datos del usuario en el flujo de autenticación.
+- `created_at` y `updated_at` permiten trazar cuándo se creó y modificó por última vez cada registro; `updated_at` se actualiza manualmente en cada query de `UPDATE`.
+
+### Inicialización de la base de datos
+
+El esquema (`db/schema/schema.sql`) se monta como script de inicialización de Postgres en `docker-compose.yml`:
+
+```yaml
+volumes:
+  - ./db/schema/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+```
+
+Esto hace que Postgres ejecute `schema.sql` automáticamente **una sola vez**, la primera vez que se levanta el contenedor con un volumen de datos vacío (`make docker-up`). Si se necesita recrear la base desde cero, `make docker-down` elimina el volumen (`db_data`) para forzar una nueva inicialización.
+
+### Operaciones de persistencia disponibles (CRUD)
+
+Definidas en `db/queries/users.sql` y generadas como funciones Go en `db/sqlc/users.sql.go`:
+
+| Query                  | Tipo   | Descripción                                                   |
+|-------------------------|--------|-----------------------------------------------------------------|
+| `CreateUser`             | Create | Inserta un nuevo usuario (normalizando `handle` y `email`)      |
+| `GetUserByID`            | Read   | Busca un usuario por su `id`                                    |
+| `GetUserByHandle`        | Read   | Busca un usuario por su `handle`                                 |
+| `GetUserByEmail`         | Read   | Busca un usuario por su `email`                                  |
+| `GetUserAuthByEmail`     | Read   | Trae solo `id` y `password_hash`, para autenticación             |
+| `ListUsers`              | Read   | Lista todos los usuarios, ordenados por `handle`                 |
+| `UpdateDisplayName`      | Update | Actualiza el nombre visible de un usuario                        |
+| `UpdateHandle`           | Update | Actualiza el `handle` de un usuario                              |
+| `UpdateEmail`            | Update | Actualiza el `email` de un usuario                               |
+| `UpdatePassword`         | Update | Actualiza el `password_hash` de un usuario                       |
+| `DeleteUser`             | Delete | Elimina un usuario por su `id`                                   |
+
+Estas operaciones se validan mediante tests de integración (`db/sqlc/users_test.go`) que corren contra una instancia real de Postgres levantada con Docker (ver sección "Cómo ejecutarlo").
+
 ## Tecnologías utilizadas
 
 - **Go** 1.27
