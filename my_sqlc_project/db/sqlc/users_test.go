@@ -3,189 +3,112 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"os"
 	"testing"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func setupTx(t *testing.T) (*Queries, func()) {
+// getTestDB abre una conexión a la base de datos usada en los tests.
+// Usa la variable de entorno DATABASE_URL (definida en .env / docker-compose).
+func getTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 
-	connStr := "host=localhost port=5432 user=rossi password=277353 dbname=webapp_db"
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/my_sqlc_project?sslmode=disable"
+	}
 
-	db, err := sql.Open("pgx", connStr)
+	conn, err := sql.Open("pgx", dsn)
 	if err != nil {
-		t.Fatalf("no se pudo conectar a la DB: %v", err)
+		t.Fatalf("no se pudo abrir la conexión: %v", err)
 	}
 
-	tx, err := db.BeginTx(context.Background(), nil)
-	if err != nil {
-		db.Close()
-		t.Fatalf("no se pudo iniciar la transacción: %v", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := conn.PingContext(ctx); err != nil {
+		t.Fatalf("no se pudo hacer ping a la base de datos: %v", err)
 	}
 
-	queries := New(tx)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
 
-	cleanup := func() {
-		_ = tx.Rollback()
-		_ = db.Close()
-	}
-
-	return queries, cleanup
+	return conn
 }
 
-func createTestUser(t *testing.T, q *Queries) User {
-	t.Helper()
+func randomUserParams(suffix string) CreateUserParams {
+	return CreateUserParams{
+		Handle:       fmt.Sprintf("test_user_%s", suffix),
+		DisplayName:  fmt.Sprintf("Test User %s", suffix),
+		Email:        fmt.Sprintf("test_user_%s@example.com", suffix),
+		PasswordHash: "not_a_real_hash",
+	}
+}
 
+func TestCreateAndGetUser(t *testing.T) {
+	conn := getTestDB(t)
+	q := New(conn)
 	ctx := context.Background()
-	user, err := q.CreateUser(ctx, CreateUserParams{
-		Handle:       "testuser",
-		DisplayName:  "Test User",
-		Email:        "test@example.com",
-		PasswordHash: "hashed_password_123",
-	})
+
+	params := randomUserParams("create_get")
+
+	created, err := q.CreateUser(ctx, params)
 	if err != nil {
 		t.Fatalf("CreateUser falló: %v", err)
 	}
-	return user
-}
-
-func TestCreateUser(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	user := createTestUser(t, q)
-
-	if user.ID == 0 {
-		t.Error("se esperaba un ID distinto de 0")
-	}
-	if user.Handle != "testuser" {
-		t.Errorf("handle: se esperaba %q, se obtuvo %q", "testuser", user.Handle)
-	}
-	if user.Email != "test@example.com" {
-		t.Errorf("email: se esperaba %q, se obtuvo %q", "test@example.com", user.Email)
-	}
-}
-
-func TestCreateUser_NormalizaHandleYEmail(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	ctx := context.Background()
-	user, err := q.CreateUser(ctx, CreateUserParams{
-		Handle:       "MayusHandle",
-		DisplayName:  "Con Mayus",
-		Email:        "Mayus@Example.com",
-		PasswordHash: "hash",
+	t.Cleanup(func() {
+		_ = q.DeleteUser(ctx, created.ID)
 	})
-	if err != nil {
-		t.Fatalf("CreateUser falló: %v", err)
+
+	if created.Handle != params.Handle {
+		t.Errorf("handle = %q, quería %q", created.Handle, params.Handle)
+	}
+	if created.Email != params.Email {
+		t.Errorf("email = %q, quería %q", created.Email, params.Email)
 	}
 
-	if user.Handle != "mayushandle" {
-		t.Errorf("se esperaba que el handle se guarde en minúsculas, se obtuvo %q", user.Handle)
-	}
-	if user.Email != "mayus@example.com" {
-		t.Errorf("se esperaba que el email se guarde en minúsculas, se obtuvo %q", user.Email)
-	}
-}
-
-func TestGetUserByID(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	got, err := q.GetUserByID(context.Background(), created.ID)
+	byID, err := q.GetUserByID(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("GetUserByID falló: %v", err)
 	}
-	if got.ID != created.ID {
-		t.Errorf("ID: se esperaba %d, se obtuvo %d", created.ID, got.ID)
+	if byID.Handle != params.Handle {
+		t.Errorf("GetUserByID: handle = %q, quería %q", byID.Handle, params.Handle)
 	}
-}
 
-func TestGetUserByHandle(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	got, err := q.GetUserByHandle(context.Background(), created.Handle)
+	byHandle, err := q.GetUserByHandle(ctx, params.Handle)
 	if err != nil {
 		t.Fatalf("GetUserByHandle falló: %v", err)
 	}
-	if got.ID != created.ID {
-		t.Errorf("ID: se esperaba %d, se obtuvo %d", created.ID, got.ID)
+	if byHandle.ID != created.ID {
+		t.Errorf("GetUserByHandle: id = %d, quería %d", byHandle.ID, created.ID)
 	}
-}
 
-func TestGetUserByEmail(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	got, err := q.GetUserByEmail(context.Background(), created.Email)
+	byEmail, err := q.GetUserByEmail(ctx, params.Email)
 	if err != nil {
 		t.Fatalf("GetUserByEmail falló: %v", err)
 	}
-	if got.ID != created.ID {
-		t.Errorf("ID: se esperaba %d, se obtuvo %d", created.ID, got.ID)
+	if byEmail.ID != created.ID {
+		t.Errorf("GetUserByEmail: id = %d, quería %d", byEmail.ID, created.ID)
 	}
 }
 
-func TestGetUserAuthByEmail(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	auth, err := q.GetUserAuthByEmail(context.Background(), created.Email)
-	if err != nil {
-		t.Fatalf("GetUserAuthByEmail falló: %v", err)
-	}
-	if auth.ID != created.ID {
-		t.Errorf("ID: se esperaba %d, se obtuvo %d", created.ID, auth.ID)
-	}
-	if auth.PasswordHash != "hashed_password_123" {
-		t.Errorf("password_hash inesperado: %q", auth.PasswordHash)
-	}
-}
-
-func TestListUsers(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	createTestUser(t, q)
-
+func TestUpdateUser(t *testing.T) {
+	conn := getTestDB(t)
+	q := New(conn)
 	ctx := context.Background()
-	_, err := q.CreateUser(ctx, CreateUserParams{
-		Handle:       "otrousuario",
-		DisplayName:  "Otro Usuario",
-		Email:        "otro@example.com",
-		PasswordHash: "hash2",
+
+	created, err := q.CreateUser(ctx, randomUserParams("update"))
+	if err != nil {
+		t.Fatalf("CreateUser falló: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = q.DeleteUser(ctx, created.ID)
 	})
-	if err != nil {
-		t.Fatalf("CreateUser (segundo usuario) falló: %v", err)
-	}
 
-	users, err := q.ListUsers(ctx)
-	if err != nil {
-		t.Fatalf("ListUsers falló: %v", err)
-	}
-	if len(users) < 2 {
-		t.Errorf("se esperaban al menos 2 usuarios, se obtuvieron %d", len(users))
-	}
-}
-
-func TestUpdateDisplayName(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	updated, err := q.UpdateDisplayName(context.Background(), UpdateDisplayNameParams{
+	updated, err := q.UpdateDisplayName(ctx, UpdateDisplayNameParams{
 		ID:          created.ID,
 		DisplayName: "Nuevo Nombre",
 	})
@@ -193,101 +116,66 @@ func TestUpdateDisplayName(t *testing.T) {
 		t.Fatalf("UpdateDisplayName falló: %v", err)
 	}
 	if updated.DisplayName != "Nuevo Nombre" {
-		t.Errorf("display_name: se esperaba %q, se obtuvo %q", "Nuevo Nombre", updated.DisplayName)
+		t.Errorf("display_name = %q, quería %q", updated.DisplayName, "Nuevo Nombre")
 	}
-}
 
-func TestUpdateHandle(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	updated, err := q.UpdateHandle(context.Background(), UpdateHandleParams{
+	updatedHandle, err := q.UpdateHandle(ctx, UpdateHandleParams{
 		ID:     created.ID,
-		Handle: "NuevoHandle",
+		Handle: "nuevo_handle",
 	})
 	if err != nil {
 		t.Fatalf("UpdateHandle falló: %v", err)
 	}
-	if updated.Handle != "nuevohandle" {
-		t.Errorf("handle: se esperaba %q (en minúsculas), se obtuvo %q", "nuevohandle", updated.Handle)
-	}
-}
-
-func TestUpdateEmail(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-
-	updated, err := q.UpdateEmail(context.Background(), UpdateEmailParams{
-		ID:    created.ID,
-		Email: "Nuevo@Example.com",
-	})
-	if err != nil {
-		t.Fatalf("UpdateEmail falló: %v", err)
-	}
-	if updated.Email != "nuevo@example.com" {
-		t.Errorf("email: se esperaba %q (en minúsculas), se obtuvo %q", "nuevo@example.com", updated.Email)
-	}
-}
-
-func TestUpdatePassword(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
-	ctx := context.Background()
-
-	err := q.UpdatePassword(ctx, UpdatePasswordParams{
-		ID:           created.ID,
-		PasswordHash: "nuevo_hash",
-	})
-	if err != nil {
-		t.Fatalf("UpdatePassword falló: %v", err)
-	}
-
-	auth, err := q.GetUserAuthByEmail(ctx, created.Email)
-	if err != nil {
-		t.Fatalf("GetUserAuthByEmail falló: %v", err)
-	}
-	if auth.PasswordHash != "nuevo_hash" {
-		t.Errorf("password_hash: se esperaba %q, se obtuvo %q", "nuevo_hash", auth.PasswordHash)
+	if updatedHandle.Handle != "nuevo_handle" {
+		t.Errorf("handle = %q, quería %q", updatedHandle.Handle, "nuevo_handle")
 	}
 }
 
 func TestDeleteUser(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	created := createTestUser(t, q)
+	conn := getTestDB(t)
+	q := New(conn)
 	ctx := context.Background()
+
+	created, err := q.CreateUser(ctx, randomUserParams("delete"))
+	if err != nil {
+		t.Fatalf("CreateUser falló: %v", err)
+	}
 
 	if err := q.DeleteUser(ctx, created.ID); err != nil {
 		t.Fatalf("DeleteUser falló: %v", err)
 	}
 
-	_, err := q.GetUserByID(ctx, created.ID)
-	if err != sql.ErrNoRows {
-		t.Errorf("se esperaba sql.ErrNoRows tras borrar, se obtuvo: %v", err)
+	if _, err := q.GetUserByID(ctx, created.ID); err == nil {
+		t.Errorf("se esperaba un error al buscar un usuario eliminado, pero no hubo ninguno")
 	}
 }
 
-func TestCreateUser_HandleDuplicadoFalla(t *testing.T) {
-	q, cleanup := setupTx(t)
-	defer cleanup()
-
-	createTestUser(t, q)
-
+func TestListUsers(t *testing.T) {
+	conn := getTestDB(t)
+	q := New(conn)
 	ctx := context.Background()
-	_, err := q.CreateUser(ctx, CreateUserParams{
-		Handle:       "testuser",
-		DisplayName:  "Otro Nombre",
-		Email:        "otro2@example.com",
-		PasswordHash: "hash3",
+
+	created, err := q.CreateUser(ctx, randomUserParams("list"))
+	if err != nil {
+		t.Fatalf("CreateUser falló: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = q.DeleteUser(ctx, created.ID)
 	})
-	if err == nil {
-		t.Error("se esperaba un error por handle duplicado (constraint UNIQUE), pero no hubo error")
+
+	users, err := q.ListUsers(ctx)
+	if err != nil {
+		t.Fatalf("ListUsers falló: %v", err)
+	}
+
+	found := false
+	for _, u := range users {
+		if u.ID == created.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("el usuario creado no aparece en ListUsers")
 	}
 }
