@@ -1,46 +1,40 @@
-# Binaries
+# Binarios compilados de Go
+/bin/
+/dist/
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
 
-# Build output
-/bin/
-/build/
-main
-my_sqlc_project
+# Salida de `go build` cuando se compila el binario del proyecto en la raíz
+/my_sqlc_project
 
-# Test binary, built with `go test -c`
+# Archivos de test
 *.test
-
-# Output of the go coverage tool
 *.out
+coverage.txt
 coverage.html
 
-# Go workspace files
+# Cachés y dependencias
 go.work
 go.work.sum
 
-# Dependency directories
-vendor/
+# Variables de entorno / secretos
+# (el .env de ejemplo con credenciales locales de Docker sí se versiona;
+#  si tenés un .env.local con datos propios, no lo subas)
+.env.local
+.env.*.local
 
-# Environment / secrets
-.env
-.env.*
-*.pem
+# Docker
+# Los datos del volumen de Postgres nunca deberían versionarse
+db_data/
 
-# Static assets served by the demo file server (optional - remove if you want to track these)
-/static/
-
-# IDE / editor files
-.idea/
+# Editor / SO
 .vscode/
+.idea/
 *.swp
 *.swo
-*~
-
-# OS files
 .DS_Store
 Thumbs.db
 
