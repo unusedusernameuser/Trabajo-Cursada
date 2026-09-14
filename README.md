@@ -2,7 +2,20 @@
 
 Trabajo de cursada de la materia **Programación Web 2026**.
 
-Proyecto base en **Go** que sienta la infraestructura de datos de un futuro *Gestor de Tareas*: define el modelo de usuarios en PostgreSQL, genera código Go type-safe a partir de SQL con **sqlc**, y expone un servidor HTTP mínimo que hoy sirve el frontend estático.
+Este repositorio corresponde a la segunda entrega (**TP2**) del proyecto **Gestor de Tareas Personales**. Construye sobre la definición de dominio de la primera entrega (TP1) y avanza en la infraestructura de datos de la aplicación: define el modelo de usuarios en PostgreSQL, genera código Go type-safe a partir de SQL con **sqlc**, y expone un servidor HTTP mínimo que hoy sirve el frontend estático.
+
+## 📋 Descripción del proyecto
+
+El **Gestor de Tareas Personales** es una aplicación pensada para el día a día del usuario común, que permite crear tareas, agruparlas por categoría, y organizar grupos donde varios usuarios pueden dividirse tareas en común.
+
+### Entidades principales del dominio
+
+- **Usuario (`User`)**: quien crea y administra tareas. Es la entidad implementada hasta el momento en este TP, con atributos como `handle` (nombre de usuario), `display_name`, `email` y `password_hash` para autenticación.
+- **Tarea (`Task`)**: elemento principal del sistema, con atributos como título, descripción, fecha límite, estado (`pendiente`, `en_progreso`, `completada`), prioridad (`baja`, `media`, `alta`) y la opción de adjuntar un archivo como una imagen.
+- **Categoría (`Category`)**: clasificación para las tareas (ej. *NombreMateria*, *Recordatorio*, *Evento*, *Trabajo*).
+- **Grupo (`Group`)**: agrupación de tareas que permite colaboración entre varios usuarios (ej. *Vacaciones*, *Proyectos*).
+
+> En esta entrega (TP2) se modeló e implementó la entidad `User` junto con su capa de acceso a datos. Las entidades `Task`, `Category` y `Group`, definidas conceptualmente en el TP1, quedan como trabajo pendiente para próximas entregas.
 
 ## Funcionalidad
 
@@ -20,7 +33,7 @@ Actualmente el proyecto implementa:
 - **Servidor HTTP** (`main.go`): por el momento sirve archivos estáticos desde `static/` (incluyendo una página 404 personalizada) en el puerto `8080`. Todavía no expone endpoints REST que utilicen las queries de sqlc.
 - **Frontend estático** (`static/`): una página de presentación del proyecto ("Gestor de Tareas").
 
-> Nota: la conexión de las queries de sqlc a endpoints HTTP reales, así como las funcionalidades de tareas (creación, categorías, prioridades, etc.) mencionadas en la página de presentación, son el trabajo pendiente/futuro del TP.
+> Nota: la conexión de las queries de sqlc a endpoints HTTP reales (para exponerlas como una API) es también trabajo pendiente de próximas entregas.
 
 ## Estructura del proyecto
 
