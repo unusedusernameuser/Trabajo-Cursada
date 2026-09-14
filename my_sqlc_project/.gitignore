@@ -1,0 +1,48 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Build output
+/bin/
+/build/
+main
+my_sqlc_project
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# Environment / secrets
+.env
+.env.*
+*.pem
+
+# Static assets served by the demo file server (optional - remove if you want to track these)
+/static/
+
+# IDE / editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
