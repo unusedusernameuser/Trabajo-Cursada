@@ -3,7 +3,7 @@ CREATE TABLE users (
     handle VARCHAR(31) UNIQUE NOT NULL
         CHECK (handle = lower(handle) AND length(trim(handle)) > 0),
     display_name VARCHAR(63) NOT NULL
-        CHECK (length(trim(display_name) > 0)),
+        CHECK (length(trim(display_name)) > 0),
     email VARCHAR(255) UNIQUE NOT NULL
         CHECK (email = lower(email) AND length(trim(email)) > 0),
     password_hash VARCHAR(255) NOT NULL

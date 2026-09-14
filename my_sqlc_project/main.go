@@ -63,7 +63,7 @@ func runUserDemo() {
 	if err != nil {
 		log.Fatalf("failed to get user auth by email: %v", err)
 	}
-	log.Printf("Retrieved auth record for longin check: %v\n", authUser)
+	log.Printf("Retrieved auth record for login check: %v\n", authUser)
 
 	users, err := queries.ListUsers(ctx)
 	if err != nil {
