@@ -23,8 +23,10 @@ go.work.sum
 # Variables de entorno / secretos
 # (el .env de ejemplo con credenciales locales de Docker sí se versiona;
 #  si tenés un .env.local con datos propios, no lo subas)
+.env
 .env.local
 .env.*.local
+!.env.example
 
 # Docker
 # Los datos del volumen de Postgres nunca deberían versionarse
@@ -37,6 +39,12 @@ db_data/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Codigo generado por 'sqlc generate'
+/db/sqlc/db.go
+/db/sqlc/models.go
+/db/sqlc/users_test.go
+/db/sqlc/users.sql.go
 
 # Logs
 *.log
