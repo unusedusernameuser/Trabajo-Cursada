@@ -1,31 +1,26 @@
--- name: AddTagToTask :exec
-INSERT INTO task_tag (task_id, tag_id)
-SELECT t.id, tg.id
-FROM tasks t
-JOIN tags tg ON tg.user_id = t.user_id
-WHERE t.id = $1 AND tg.id = $2
-ON CONFLICT (task_id, tag_id) DO NOTHING;
+-- name: GetTagByID :one
+SELECT id, user_id, tag_name, created_at, updated_at
+FROM tags
+WHERE id = $1 AND user_id = $2;
 
--- name: RemoveTagFromTask :exec
-DELETE FROM task_tag
-WHERE task_id = $1 AND tag_id = $2;
+-- name: ListTagsByUser :many
+SELECT id, user_id, tag_name, created_at, updated_at
+FROM tags
+WHERE user_id = $1
+ORDER BY tag_name;
 
--- name: ClearTaskTags :exec
-DELETE FROM task_tag
-WHERE task_id = $1;
+-- name: CreateTag :one
+INSERT INTO tags (user_id, tag_name)
+VALUES ($1, $2)
+RETURNING id, user_id, tag_name, created_at, updated_at;
 
--- name: ListTagsByTask :many
-SELECT tg.id, tg.user_id, tg.tag_name, tg.created_at, tg.updated_at
-FROM tags tg
-JOIN task_tag tt ON tt.tag_id = tg.id
-WHERE tt.task_id = $1
-ORDER BY tg.tag_name;
+-- name: UpdateTagName :one
+UPDATE tags
+SET tag_name = sqlc.arg(tag_name),
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id)
+RETURNING id, user_id, tag_name, created_at, updated_at;
 
--- name: ListTasksByTag :many
-SELECT t.id, t.user_id, t.folder_id, t.group_id, t.assigned_to, t.title, t.task_description,
-       t.due_date, t.task_status, t.task_priority, t.attachment_path,
-       t.created_at, t.updated_at, t.completed_at
-FROM tasks t
-JOIN task_tag tt ON tt.task_id = t.id
-WHERE tt.tag_id = $1
-ORDER BY t.due_date NULLS LAST, t.id;
+-- name: DeleteTag :exec
+DELETE FROM tags
+WHERE id = $1 AND user_id = $2;
