@@ -42,8 +42,13 @@ Thumbs.db
 
 # Codigo generado por 'sqlc generate'
 /db/sqlc/db.go
+/db/sqlc/folders.sql.go
+/db/sqlc/groups_members.sql.go
+/db/sqlc/groups.sql.go
 /db/sqlc/models.go
-/db/sqlc/users_test.go
+/db/sqlc/tags.sql.go
+/db/sqlc/tasks_tags.sql.go
+/db/sqlc/tasks.sql.go
 /db/sqlc/users.sql.go
 
 # Logs
