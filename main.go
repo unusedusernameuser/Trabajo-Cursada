@@ -1,13 +1,36 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+
+	db "my_sqlc_project/db/sqlc"
 )
 
 func main() {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Fatal("la variable de entorno DATABASE_URL es obligatoria")
+	}
+
+	conn, err := sql.Open("pgx", dsn)
+	if err != nil {
+		log.Fatalf("no se pudo abrir la conexión a la base de datos: %v", err)
+	}
+	defer conn.Close()
+
+	if err := conn.Ping(); err != nil {
+		log.Fatalf("no se pudo conectar a la base de datos: %v", err)
+	}
+
+	queries := db.New(conn)
+	registerUserRoutes(conn, queries)
+
 	startStaticServer()
 }
 
@@ -41,7 +64,7 @@ func startStaticServer() {
 	})
 
 	port := ":8080"
-	log.Printf("Servidor estatico escuchando en http://localhost%s\n", port)
+	log.Printf("Servidor escuchando en http://localhost%s\n", port)
 	log.Printf("Sirviendo archivos desde: %s\n", staticDir)
 
 	if err := http.ListenAndServe(port, nil); err != nil {
