@@ -1,6 +1,6 @@
 # Pruebas de la API de usuarios.
 # Requiere el servidor corriendo en http://localhost:8080 (ver README).
-# Ejecutar con:  hurl --test requests.hurl
+# Ejecutar con:  hurl --test request.hurl
 
 # 1. Crear un usuario -> 201 y devuelve el nuevo objeto
 POST http://localhost:8080/users

@@ -9,8 +9,11 @@ export
 
 COMPOSE      := docker compose
 WAIT_TIMEOUT := 60
+HURL_FILE    := request.hurl
+# Reintentos por si la app todavia esta arrancando cuando empieza hurl
+HURL_RETRY   := 15
 
-.PHONY: all test sqlc build docker-down docker-up clean
+.PHONY: all test hurl sqlc build docker-down docker-up clean
 
 # Punto de entrada por defecto: corre todo el ciclo completo.
 all: test
@@ -40,12 +43,24 @@ docker-up:
 
 ## ---- 2) Ejecución de tests --------------------------------------------
 
+# Corre los tests de Go y, si pasan, las pruebas de la API con hurl.
 test: docker-down build docker-up
 	@echo "==> Ejecutando tests..."
 	@DATABASE_URL="$(DATABASE_URL)" go test ./... -v; \
 	status=$$?; \
+	if [ $$status -eq 0 ]; then \
+		$(MAKE) hurl; \
+		status=$$?; \
+	fi; \
 	$(MAKE) docker-down; \
 	exit $$status
+
+# Ejecuta request.hurl contra el servidor en http://localhost:8080.
+# Requiere la app levantada (make docker-up) y hurl instalado.
+hurl:
+	@command -v hurl >/dev/null 2>&1 || { echo "Falta hurl: https://hurl.dev/docs/installation.html"; exit 1; }
+	@echo "==> Ejecutando $(HURL_FILE) con hurl..."
+	hurl --test --retry $(HURL_RETRY) --retry-interval 1000 $(HURL_FILE)
 
 ## ---- 3) Tareas posteriores ---------------------------------------------
 ## (docker-down ya se usa arriba como paso final, sea cual sea el resultado
