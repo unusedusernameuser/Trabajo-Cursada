@@ -18,7 +18,7 @@ func uniqueSuffix(prefix string) string {
 
 // createTestUser crea un usuario y lo elimina (junto con sus datos) al terminar el test.
 // El prefijo debe ser corto: el handle tiene un máximo de 31 caracteres.
-func createTestUser(t *testing.T, q *Queries, prefix string) User {
+func createTestUser(t *testing.T, q *Queries, prefix string) CreateUserRow {
 	t.Helper()
 	ctx := context.Background()
 
@@ -58,7 +58,7 @@ func createTestTag(t *testing.T, q *Queries, userID int32, name string) Tag {
 	return tag
 }
 
-func createTestGroup(t *testing.T, q *Queries, ownerID int32, name string) Group {
+func createTestGroup(t *testing.T, q *Queries, ownerID int32, name string) CreateGroupRow {
 	t.Helper()
 
 	g, err := q.CreateGroup(context.Background(), CreateGroupParams{
