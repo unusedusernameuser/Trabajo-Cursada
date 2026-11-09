@@ -12,7 +12,6 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-/*
 CREATE TABLE folders (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL 
@@ -89,4 +88,3 @@ CREATE TABLE tasks_tags (
         REFERENCES tags(id) ON DELETE CASCADE,
     PRIMARY key (task_id, tag_id)
 );
-*/
