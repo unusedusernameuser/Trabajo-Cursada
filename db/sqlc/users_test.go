@@ -179,3 +179,85 @@ func TestListUsers(t *testing.T) {
 		t.Errorf("el usuario creado no aparece en ListUsers")
 	}
 }
+
+func TestGetUserAuthByEmail(t *testing.T) {
+	conn := getTestDB(t)
+	q := New(conn)
+	ctx := context.Background()
+
+	params := randomUserParams("auth")
+	created, err := q.CreateUser(ctx, params)
+	if err != nil {
+		t.Fatalf("CreateUser falló: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = q.DeleteUser(ctx, created.ID)
+	})
+
+	auth, err := q.GetUserAuthByEmail(ctx, params.Email)
+	if err != nil {
+		t.Fatalf("GetUserAuthByEmail falló: %v", err)
+	}
+	if auth.ID != created.ID {
+		t.Errorf("id = %d, quería %d", auth.ID, created.ID)
+	}
+	if auth.PasswordHash != params.PasswordHash {
+		t.Errorf("password_hash = %q, quería %q", auth.PasswordHash, params.PasswordHash)
+	}
+}
+
+func TestUpdateEmail(t *testing.T) {
+	conn := getTestDB(t)
+	q := New(conn)
+	ctx := context.Background()
+
+	created, err := q.CreateUser(ctx, randomUserParams("email"))
+	if err != nil {
+		t.Fatalf("CreateUser falló: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = q.DeleteUser(ctx, created.ID)
+	})
+
+	// La query pasa el email a minúsculas.
+	updated, err := q.UpdateEmail(ctx, UpdateEmailParams{
+		ID:    created.ID,
+		Email: "Nuevo_Email_Test@Example.com",
+	})
+	if err != nil {
+		t.Fatalf("UpdateEmail falló: %v", err)
+	}
+	if updated.Email != "nuevo_email_test@example.com" {
+		t.Errorf("email = %q, quería %q", updated.Email, "nuevo_email_test@example.com")
+	}
+}
+
+func TestUpdatePassword(t *testing.T) {
+	conn := getTestDB(t)
+	q := New(conn)
+	ctx := context.Background()
+
+	params := randomUserParams("pass")
+	created, err := q.CreateUser(ctx, params)
+	if err != nil {
+		t.Fatalf("CreateUser falló: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = q.DeleteUser(ctx, created.ID)
+	})
+
+	if err := q.UpdatePassword(ctx, UpdatePasswordParams{
+		ID:           created.ID,
+		PasswordHash: "otro_hash_falso",
+	}); err != nil {
+		t.Fatalf("UpdatePassword falló: %v", err)
+	}
+
+	auth, err := q.GetUserAuthByEmail(ctx, params.Email)
+	if err != nil {
+		t.Fatalf("GetUserAuthByEmail falló: %v", err)
+	}
+	if auth.PasswordHash != "otro_hash_falso" {
+		t.Errorf("password_hash = %q, quería %q", auth.PasswordHash, "otro_hash_falso")
+	}
+}
