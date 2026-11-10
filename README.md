@@ -1,4 +1,4 @@
-# my_sqlc_project
+# to-do-list
 
 Trabajo de cursada de la materia **Programación Web 2026**.
 
