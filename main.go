@@ -10,6 +10,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	db "my_sqlc_project/db/sqlc"
+	"my_sqlc_project/handlers"
 )
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 	}
 
 	queries := db.New(conn)
-	registerUserRoutes(conn, queries)
+	handlers.Register(conn, queries)
 
 	startStaticServer()
 }
