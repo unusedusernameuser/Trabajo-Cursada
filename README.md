@@ -2,7 +2,7 @@
 
 Trabajo de cursada de la materia **Programación Web 2026**.
 
-Este repositorio corresponde a la tercera entrega (**TP3**) del proyecto **Gestor de Tareas Personales**: **"Exponiendo la Lógica como API"**. Construye sobre la entrega anterior (TP2), donde se definió el modelo de usuarios en PostgreSQL y se generó la capa de acceso a datos con **sqlc**, y ahora **expone esa lógica como una API REST** con operaciones CRUD sobre la entidad `User`, probada de punta a punta con **Hurl**.
+Este repositorio corresponde a la tercera entrega (**TP3**) del proyecto **Gestor de Tareas Personales**: **"Exponiendo la Lógica como API"**. Construye sobre la entrega anterior (TP2), donde se definió el modelo de usuarios en PostgreSQL y se generó la capa de acceso a datos con **sqlc**, y ahora **expone esa lógica como una API REST** con operaciones CRUD sobre usuarios, carpetas, tags, grupos (con sus miembros) y tareas (con sus tags), probada de punta a punta con **Hurl**.
 
 ## 📋 Descripción del proyecto
 
@@ -15,7 +15,7 @@ El **Gestor de Tareas Personales** es una aplicación pensada para el día a dí
 - **Categoría (`Category`)**: clasificación para las tareas (ej. *NombreMateria*, *Recordatorio*, *Evento*, *Trabajo*).
 - **Grupo (`Group`)**: agrupación de tareas que permite colaboración entre varios usuarios (ej. *Vacaciones*, *Proyectos*).
 
-> En esta entrega (TP3) se expone como API REST la entidad `User`. Las entidades `Task`, `Category` y `Group` quedan como trabajo pendiente para próximas entregas (sus tablas y queries están esbozadas pero deshabilitadas).
+> La API expone usuarios, carpetas (`folders`), tags, grupos (`groups` y `groups_members`) y tareas (`tasks` y `tasks_tags`). Las rutas de cada entidad se describen en la sección *API REST*.
 
 ## Funcionalidad
 
@@ -23,8 +23,8 @@ Actualmente el proyecto implementa:
 
 - **Modelo de datos de usuarios** (`db/schema/schema.sql`): tabla `users` con `handle` (nombre de usuario único), `display_name`, `email` (único) y `password_hash`, con validaciones a nivel de base de datos (formato en minúsculas, campos no vacíos, etc.).
 - **Capa de acceso a datos generada con sqlc** (`db/sqlc/`): a partir de las queries escritas en `db/queries/users.sql`, sqlc genera funciones Go type-safe (`GetUserByID`, `ListUsers`, `CreateUser`, `UpdateHandle`, `UpdateEmail`, `UpdateDisplayName`, `DeleteUser`, entre otras).
-- **API REST de usuarios** (`handlers.go`): cinco endpoints CRUD que usan directamente las funciones generadas por sqlc, con validación de entrada y traducción de errores de la base de datos a códigos HTTP.
-- **Tests de integración** (`db/sqlc/users_test.go`): ejercitan la capa de datos contra una base Postgres real.
+- **API REST** (`handlers/`): un archivo de handlers por entidad que usa directamente las funciones generadas por sqlc, con validación de entrada y traducción de errores de la base de datos a códigos HTTP.
+- **Tests de integración** (`db/sqlc/*_test.go`): un archivo por cada `.sql` de `db/queries/`, que ejercitan la capa de datos contra una base Postgres real.
 - **Pruebas de la API con Hurl** (`request.hurl`): 11 requests que recorren todos los endpoints, incluyendo los casos de error (400, 404, 409).
 - **Servidor HTTP** (`main.go`): se conecta a Postgres, registra las rutas de la API y sirve el frontend estático desde `static/` (con página 404 personalizada) en el puerto `8080`.
 - **Dockerización**: `docker-compose.yml` levanta Postgres y la aplicación (construida con el `dockerfile`).
@@ -40,6 +40,52 @@ Base URL: `http://localhost:8080`
 | `GET`    | `/users/{id}` | Obtiene un usuario por `id`                  | `200 OK` + usuario                |
 | `PUT`    | `/users/{id}` | Actualiza `handle`, `email` y `display_name` | `200 OK` + usuario actualizado    |
 | `DELETE` | `/users/{id}` | Elimina un usuario por `id`                  | `204 No Content` (sin cuerpo)     |
+
+### Carpetas, tags, grupos y tareas
+
+Como la API no tiene autenticación, el usuario que consulta o modifica va en la URL (`/users/{user_id}/...`) y las queries lo usan para validar permisos (por ejemplo, una carpeta solo la ve su dueño).
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` `GET` | `/users/{user_id}/folders` | Crear / listar carpetas del usuario |
+| `GET` `PUT` `DELETE` | `/users/{user_id}/folders/{id}` | Obtener / renombrar / borrar (`{"folder_name": ...}`) |
+| `POST` `GET` | `/users/{user_id}/tags` | Crear / listar tags |
+| `GET` `PUT` `DELETE` | `/users/{user_id}/tags/{id}` | Obtener / renombrar / borrar (`{"tag_name": ...}`) |
+| `POST` `GET` | `/users/{user_id}/groups` | Crear grupo (el usuario queda como dueño y miembro) / listar los grupos de los que es miembro (`?owner=true`: solo los que creó) |
+| `GET` | `/groups/{id}` | Obtener un grupo |
+| `PUT` `DELETE` | `/users/{user_id}/groups/{id}` | Modificar / borrar (solo el dueño) |
+| `POST` `GET` | `/groups/{id}/members` | Agregar miembro (`{"user_id": 3}`) / listar miembros |
+| `GET` | `/groups/{id}/members/count` | Cantidad de miembros |
+| `GET` `DELETE` | `/groups/{id}/members/{user_id}` | Consultar pertenencia (`{"is_member": true}`) / quitar miembro (el dueño no se puede quitar) |
+| `POST` `GET` | `/users/{user_id}/tasks` | Crear tarea / listar (`?status=&priority=&folder_id=`) |
+| `GET` | `/users/{user_id}/tasks/overdue` | Tareas vencidas y sin completar |
+| `GET` | `/users/{user_id}/assigned-tasks` | Tareas asignadas al usuario |
+| `GET` | `/users/{user_id}/folders/{folder_id}/tasks` | Tareas de una carpeta |
+| `GET` | `/users/{user_id}/groups/{group_id}/tasks` | Tareas de un grupo (solo si es miembro) |
+| `GET` `PUT` `DELETE` | `/users/{user_id}/tasks/{id}` | Obtener (creador, asignado o miembro del grupo) / modificar y borrar (solo el creador) |
+| `PUT` | `/users/{user_id}/tasks/{id}/status` | Cambiar estado (`{"task_status": "completada"}`); completa o limpia `completed_at` |
+| `PUT` | `/users/{user_id}/tasks/{id}/folder` | Mover a una carpeta (`{"folder_id": 3}`; `null` la saca) |
+| `PUT` | `/users/{user_id}/tasks/{id}/assignee` | Asignar (`{"assigned_to": 3}`; `null` desasigna) |
+| `PUT` | `/users/{user_id}/tasks/{id}/attachment` | Adjuntar archivo (`{"attachment_path": "..."}`; `null` lo quita) |
+| `GET` `DELETE` | `/users/{user_id}/tasks/{id}/tags` | Listar los tags de la tarea / quitarlos todos |
+| `PUT` `DELETE` | `/users/{user_id}/tasks/{id}/tags/{tag_id}` | Asociar / quitar un tag |
+| `GET` | `/users/{user_id}/tags/{tag_id}/tasks` | Tareas que tienen un tag |
+
+Ejemplo de `POST /users/{user_id}/tasks` (solo `title` es obligatorio; `due_date` en formato RFC 3339):
+
+```json
+{
+  "title": "Armar informe",
+  "task_description": "Primera versión",
+  "folder_id": 1,
+  "group_id": 2,
+  "assigned_to": 3,
+  "due_date": "2030-01-01T00:00:00Z",
+  "task_priority": "alta"
+}
+```
+
+Los campos opcionales ausentes se devuelven como `null`. Los `DELETE` son idempotentes: responden `204` aunque el recurso no exista o no sea del usuario (en ese caso no borran nada).
 
 Todas las respuestas con cuerpo son JSON. Los errores tienen la forma `{"error": "mensaje"}`.
 
@@ -84,8 +130,8 @@ Se envían `handle`, `display_name` y `email` (`password_hash` se ignora en el P
 | Código | Cuándo ocurre                                                                                                      |
 |--------|--------------------------------------------------------------------------------------------------------------------|
 | `400`  | JSON inválido, campos obligatorios vacíos, campos que superan el largo máximo, o `id` que no es un entero positivo |
-| `404`  | No existe un usuario con ese `id` (GET y PUT)                                                                      |
-| `409`  | Ya existe otro usuario con ese `handle` o `email` (violación de unicidad)                                          |
+| `404`  | No existe el recurso (o no pertenece al usuario de la URL), o una referencia a otro recurso inexistente           |
+| `409`  | Violación de unicidad (`handle`/`email` de usuario, nombre de carpeta o tag repetido por usuario, miembro repetido) |
 | `500`  | Error interno inesperado de la base de datos (el detalle se registra en el log, no se expone)                      |
 
 ## Estructura del proyecto
@@ -94,12 +140,12 @@ Se envían `handle`, `display_name` y `email` (`password_hash` se ignora en el P
 Trabajo-Cursada-tp3/
 ├── db/
 │   ├── queries/
-│   │   ├── users.sql             # Queries SQL fuente para sqlc
-│   │   └── future_queries/       # Queries de entidades futuras (aún no activas)
+│   │   └── *.sql                 # Queries SQL fuente para sqlc (users, folders, tags, groups, groups_members, tasks, tasks_tags)
 │   ├── schema/
 │   │   └── schema.sql            # Definición de tablas (usada también por Docker para inicializar la DB)
 │   └── sqlc/
-│       └── users_test.go         # Tests de integración contra Postgres
+│       ├── *_test.go             # Tests de integración contra Postgres (uno por cada .sql)
+│       └── helpers_test.go       # Helpers compartidos por los tests
 │                                 # (el resto de los archivos de esta carpeta los genera sqlc)
 ├── static/
 │   ├── css/
@@ -107,8 +153,16 @@ Trabajo-Cursada-tp3/
 │   │   └── index.css
 │   ├── 404.html
 │   └── index.html
-├── main.go                       # Arranque: conexión a la DB, rutas y servidor estático
-├── handlers.go                   # Handlers CRUD de la API de usuarios y registro de rutas
+├── main.go                       # Arranque: conexión a la DB, handlers.Register y servidor estático
+├── handlers/                     # API REST (paquete handlers)
+│   ├── routes.go                 # Register(): registra las rutas de todas las entidades
+│   ├── helpers.go                # Lectura de ids, validación y conversiones sql.Null*
+│   ├── errors.go                 # Respuestas JSON y traducción de errores de la base a HTTP
+│   ├── users.go                  # Handlers de usuarios
+│   ├── folders.go                # Handlers de carpetas
+│   ├── tags.go                   # Handlers de tags
+│   ├── groups.go                 # Handlers de grupos y miembros
+│   └── tasks.go                  # Handlers de tareas y de sus tags
 ├── request.hurl                  # Pruebas de la API con Hurl
 ├── sqlc.yaml                     # Configuración de sqlc (motor, rutas, paquete de salida)
 ├── dockerfile                    # Imagen de la aplicación (build multi-stage)
@@ -118,7 +172,7 @@ Trabajo-Cursada-tp3/
 └── go.mod / go.sum               # Dependencias del módulo Go
 ```
 
-> Los archivos `db/sqlc/db.go`, `models.go` y `users.sql.go` **no se versionan**: son código generado y se crean al ejecutar `make sqlc` (que `make test` ya invoca). Tampoco se versiona el `.env`: el Makefile lo crea automáticamente a partir de `.env.example` si no existe.
+> Los archivos `db/sqlc/db.go`, `models.go` y los `*.sql.go` **no se versionan**: son código generado y se crean al ejecutar `make sqlc` (que `make test` ya invoca). Tampoco se versiona el `.env`: el Makefile lo crea automáticamente a partir de `.env.example` si no existe.
 
 ## Persistencia
 
@@ -130,7 +184,7 @@ Trabajo-Cursada-tp3/
 
 ### Modelo de datos
 
-El esquema define por ahora una única entidad, `users`:
+El esquema (`db/schema/schema.sql`) define `users`, `folders`, `tags`, `groups`, `groups_members`, `tasks` y `tasks_tags`. A modo de ejemplo, la tabla `users`:
 
 | Columna         | Tipo                       | Restricciones                                                         |
 |-----------------|----------------------------|-----------------------------------------------------------------------|
@@ -146,7 +200,7 @@ El esquema define por ahora una única entidad, `users`:
 
 - `handle` y `email` son `UNIQUE` porque identifican al usuario de forma inequívoca. Se normalizan a minúsculas (a nivel de base con `CHECK` y en las queries con `LOWER()`) para evitar duplicados como `Juan` vs `juan`.
 - Nunca se persiste la contraseña en texto plano: se guarda `password_hash`, y la API nunca lo devuelve en sus respuestas.
-- La API valida en `handlers.go` las mismas reglas que el esquema (no vacío y largo máximo de cada columna), de modo que los datos inválidos se rechazan con `400` antes de llegar a la base.
+- La API valida en `handlers/` las mismas reglas que el esquema (no vacío y largo máximo de cada columna), de modo que los datos inválidos se rechazan con `400` antes de llegar a la base.
 - Los errores de unicidad de Postgres (código `23505`) se traducen a `409 Conflict`, y las filas inexistentes (`sql.ErrNoRows`) a `404 Not Found`.
 - El `PUT` usa una transacción para que la actualización de los tres campos sea atómica.
 - `updated_at` se actualiza manualmente en cada query de `UPDATE`.
@@ -166,7 +220,7 @@ Postgres lo ejecuta automáticamente **una sola vez**, la primera vez que se lev
 
 El proyecto tiene dos niveles de pruebas:
 
-1. **Tests de integración en Go** (`db/sqlc/users_test.go`): verifican las queries generadas por sqlc contra Postgres real.
+1. **Tests de integración en Go** (`db/sqlc/*_test.go`): un archivo por cada `.sql`, que verifica las queries generadas por sqlc contra Postgres real. Se pueden correr solos con `make test-db`.
 2. **Pruebas de la API con [Hurl](https://hurl.dev/)** (`request.hurl`): hacen requests HTTP reales al servidor y verifican códigos de estado y contenido de las respuestas. El archivo cubre, en orden:
    1. Crear usuario (`201`, con normalización a minúsculas y captura del `id`)
    2. Crear con datos inválidos (`400`)
@@ -179,6 +233,7 @@ El proyecto tiene dos niveles de pruebas:
    9. Actualizar un `id` inexistente (`404`)
    10. Eliminar usuario (`204`)
    11. Verificar que ya no existe (`404`)
+   12. En adelante, el recorrido completo de carpetas, tags, grupos, miembros, tareas y tags de tareas, incluyendo los casos de permisos (`404`), validación (`400`) y duplicados (`409`)
 
 ## Tecnologías utilizadas
 
