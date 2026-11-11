@@ -47,9 +47,14 @@ function clearMessage() {
     messageBox.textContent = "";
 }
 
-function formatDate(isoString) {
+// created_at puede llegar como string ISO o, si la columna admite NULL, como el objeto
+// que serializa sql.NullTime de Go: {"Time": "...", "Valid": true}. Se aceptan ambos.
+function formatDate(value) {
+    const isoString = value && typeof value === "object" ? (value.Valid ? value.Time : null) : value;
     if (!isoString) return "";
-    return new Date(isoString).toLocaleDateString("es-AR", {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("es-AR", {
         day: "numeric",
         month: "short",
         year: "numeric",
