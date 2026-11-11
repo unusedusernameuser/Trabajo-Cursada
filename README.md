@@ -1,4 +1,4 @@
-# to-do-list
+# Gestor de Tareas
 
 Trabajo de cursada de la materia **Programación Web 2026**.
 
