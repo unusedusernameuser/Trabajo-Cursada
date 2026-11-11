@@ -1,33 +1,52 @@
-# Gestor de Tareas
+# Gestor de tareas
 
 Trabajo de cursada de la materia **Programación Web 2026**.
 
-Este repositorio corresponde a la tercera entrega (**TP3**) del proyecto **Gestor de Tareas Personales**: **"Exponiendo la Lógica como API"**. Construye sobre la entrega anterior (TP2), donde se definió el modelo de usuarios en PostgreSQL y se generó la capa de acceso a datos con **sqlc**, y ahora **expone esa lógica como una API REST** con operaciones CRUD sobre usuarios, carpetas, tags, grupos (con sus miembros) y tareas (con sus tags), probada de punta a punta con **Hurl**.
+Este repositorio corresponde a la cuarta entrega (**TP4**) del proyecto **Gestor de Tareas Personales**: **"Construyendo la Interfaz de Usuario"**. Construye sobre la entrega anterior (TP3), que expuso la lógica de negocio como una API REST en Go sobre PostgreSQL, y ahora le suma un **frontend en HTML, CSS y JavaScript** que consume esa API: desde el navegador se pueden **listar, crear y eliminar usuarios**.
 
-## 📋 Descripción del proyecto
+## Descripción del proyecto
 
-El **Gestor de Tareas Personales** es una aplicación pensada para el día a día del usuario común, que permite crear tareas, agruparlas por categoría, y organizar grupos donde varios usuarios pueden dividirse tareas en común.
+El **Gestor de Tareas Personales** es una aplicación pensada para el día a día del usuario común: permite crear tareas, agruparlas por carpetas y tags, y organizar grupos donde varios usuarios pueden dividirse tareas en común.
 
 ### Entidades principales del dominio
 
-- **Usuario (`User`)**: quien crea y administra tareas. Es la entidad implementada hasta el momento, con atributos como `handle` (nombre de usuario), `display_name`, `email` y `password_hash` para autenticación.
-- **Tarea (`Task`)**: elemento principal del sistema, con atributos como título, descripción, fecha límite, estado (`pendiente`, `en_progreso`, `completada`), prioridad (`baja`, `media`, `alta`) y la opción de adjuntar un archivo como una imagen.
-- **Categoría (`Category`)**: clasificación para las tareas (ej. *NombreMateria*, *Recordatorio*, *Evento*, *Trabajo*).
-- **Grupo (`Group`)**: agrupación de tareas que permite colaboración entre varios usuarios (ej. *Vacaciones*, *Proyectos*).
-
-> La API expone usuarios, carpetas (`folders`), tags, grupos (`groups` y `groups_members`) y tareas (`tasks` y `tasks_tags`). Las rutas de cada entidad se describen en la sección *API REST*.
+- **Usuario (`User`)**: quien crea y administra tareas. Tiene `handle` (nombre de usuario único), `display_name`, `email` y `password_hash`.
+- **Tarea (`Task`)**: elemento principal del sistema, con título, descripción, fecha límite, estado (`pendiente`, `en_progreso`, `completada`), prioridad (`baja`, `media`, `alta`) y un archivo adjunto opcional.
+- **Carpeta (`Folder`) y Tag (`Tag`)**: dos formas de clasificar las tareas de un usuario.
+- **Grupo (`Group`)**: agrupación de tareas que permite colaborar entre varios usuarios (ej. *Vacaciones*, *Proyectos*).
 
 ## Funcionalidad
 
-Actualmente el proyecto implementa:
-
-- **Modelo de datos de usuarios** (`db/schema/schema.sql`): tabla `users` con `handle` (nombre de usuario único), `display_name`, `email` (único) y `password_hash`, con validaciones a nivel de base de datos (formato en minúsculas, campos no vacíos, etc.).
-- **Capa de acceso a datos generada con sqlc** (`db/sqlc/`): a partir de las queries escritas en `db/queries/users.sql`, sqlc genera funciones Go type-safe (`GetUserByID`, `ListUsers`, `CreateUser`, `UpdateHandle`, `UpdateEmail`, `UpdateDisplayName`, `DeleteUser`, entre otras).
-- **API REST** (`handlers/`): un archivo de handlers por entidad que usa directamente las funciones generadas por sqlc, con validación de entrada y traducción de errores de la base de datos a códigos HTTP.
-- **Tests de integración** (`db/sqlc/*_test.go`): un archivo por cada `.sql` de `db/queries/`, que ejercitan la capa de datos contra una base Postgres real.
-- **Pruebas de la API con Hurl** (`request.hurl`): 11 requests que recorren todos los endpoints, incluyendo los casos de error (400, 404, 409).
-- **Servidor HTTP** (`main.go`): se conecta a Postgres, registra las rutas de la API y sirve el frontend estático desde `static/` (con página 404 personalizada) en el puerto `8080`.
+- **Interfaz de usuario** (`static/`): página única que muestra la lista de usuarios, un formulario para crear uno nuevo y un botón para eliminar cada uno. Es la novedad de esta entrega y se detalla en la sección [Frontend](#frontend).
+- **API REST** (`handlers/`): CRUD sobre usuarios, carpetas, tags, grupos (con sus miembros) y tareas (con sus tags). Cada entidad tiene su archivo, con validación de entrada y traducción de errores de la base de datos a códigos HTTP.
+- **Capa de acceso a datos con sqlc** (`db/sqlc/`): funciones Go type-safe generadas a partir del SQL escrito en `db/queries/`.
+- **Tests de integración** (`db/sqlc/*_test.go`): un archivo por cada `.sql` de `db/queries/`, contra una base Postgres real.
+- **Pruebas de la API con Hurl** (`request.hurl`): recorren todos los endpoints, incluyendo los casos de error (400, 404, 409).
+- **Servidor HTTP** (`main.go`): se conecta a Postgres, registra las rutas de la API y sirve el frontend desde `static/` en el puerto `8080`, con una página 404 personalizada.
 - **Dockerización**: `docker-compose.yml` levanta Postgres y la aplicación (construida con el `dockerfile`).
+
+## Frontend
+
+El cliente está formado por tres archivos dentro de `static/`:
+
+| Archivo          | Rol                                                                                             |
+|------------------|-------------------------------------------------------------------------------------------------|
+| `index.html`     | Estructura: título principal, formulario de alta (`#user-form`) y contenedor de la lista (`#user-list`) |
+| `js/app.js`      | Comunicación con la API (`fetch`), armado dinámico del DOM y manejo de eventos                  |
+| `css/styles.css` | Estilos con CSS Grid y Flexbox; lo usan tanto `index.html` como `404.html`                      |
+
+### Cómo funciona
+
+1. **Al cargar la página** se hace `GET /users` y se genera un `<li>` por cada usuario, con su nombre, `@handle`, email, fecha de alta y un botón **Eliminar**.
+2. **Al enviar el formulario** se previene el comportamiento por defecto, se toman los valores de los inputs y se hace `POST /users` con un cuerpo JSON. Si sale bien, se limpia el formulario y se vuelve a pedir la lista completa para mostrar el nuevo usuario.
+3. **Al hacer clic en Eliminar** se pide confirmación, se hace `DELETE /users/{id}` y se vuelve a pedir la lista. Como los botones se crean dinámicamente, se usa **delegación de eventos**: hay un único listener en `#user-list` que detecta el clic con `closest('[data-action="delete"]')` y toma el `id` desde `data-id` del `<li>`.
+4. **Los errores** de la API (por ejemplo `409` por `handle` o email repetido, o `400` por validación) se muestran en pantalla con el mensaje que devuelve el servidor (`{"error": "..."}`). Si el servidor no responde, se muestra un aviso de conexión.
+
+### Decisiones de diseño
+
+- **Mismo origen, sin CORS**: el servidor Go sirve la API y los archivos estáticos en el mismo puerto, por eso el cliente usa rutas relativas (`/users`). Por la misma razón, la página debe abrirse desde `http://localhost:8080` y **no** directamente como archivo (`file://`).
+- **`textContent` en lugar de `innerHTML`**: los datos de los usuarios se insertan como texto, así que nunca se interpretan como HTML (evita inyección de código).
+- **Campo contraseña**: la API espera un `password_hash`, pero no hashea nada por su cuenta. Este cliente de práctica envía el valor tal cual; en una aplicación real el hash se calcularía en el servidor (por ejemplo con bcrypt) antes de guardarlo.
 
 ## API REST
 
@@ -40,6 +59,8 @@ Base URL: `http://localhost:8080`
 | `GET`    | `/users/{id}` | Obtiene un usuario por `id`                  | `200 OK` + usuario                |
 | `PUT`    | `/users/{id}` | Actualiza `handle`, `email` y `display_name` | `200 OK` + usuario actualizado    |
 | `DELETE` | `/users/{id}` | Elimina un usuario por `id`                  | `204 No Content` (sin cuerpo)     |
+
+El frontend utiliza `GET`, `POST` y `DELETE` sobre `/users`.
 
 ### Carpetas, tags, grupos y tareas
 
@@ -127,17 +148,17 @@ Se envían `handle`, `display_name` y `email` (`password_hash` se ignora en el P
 
 ### Códigos de error
 
-| Código | Cuándo ocurre                                                                                                      |
-|--------|--------------------------------------------------------------------------------------------------------------------|
-| `400`  | JSON inválido, campos obligatorios vacíos, campos que superan el largo máximo, o `id` que no es un entero positivo |
-| `404`  | No existe el recurso (o no pertenece al usuario de la URL), o una referencia a otro recurso inexistente           |
+| Código | Cuándo ocurre                                                                                                       |
+|--------|---------------------------------------------------------------------------------------------------------------------|
+| `400`  | JSON inválido, campos obligatorios vacíos, campos que superan el largo máximo, o `id` que no es un entero positivo  |
+| `404`  | No existe el recurso (o no pertenece al usuario de la URL), o una referencia a otro recurso inexistente             |
 | `409`  | Violación de unicidad (`handle`/`email` de usuario, nombre de carpeta o tag repetido por usuario, miembro repetido) |
-| `500`  | Error interno inesperado de la base de datos (el detalle se registra en el log, no se expone)                      |
+| `500`  | Error interno inesperado de la base de datos (el detalle se registra en el log, no se expone)                       |
 
 ## Estructura del proyecto
 
 ```
-Trabajo-Cursada-tp3/
+Trabajo-Cursada-tp4/
 ├── db/
 │   ├── queries/
 │   │   └── *.sql                 # Queries SQL fuente para sqlc (users, folders, tags, groups, groups_members, tasks, tasks_tags)
@@ -147,13 +168,13 @@ Trabajo-Cursada-tp3/
 │       ├── *_test.go             # Tests de integración contra Postgres (uno por cada .sql)
 │       └── helpers_test.go       # Helpers compartidos por los tests
 │                                 # (el resto de los archivos de esta carpeta los genera sqlc)
-├── static/
+├── static/                       # Frontend (lo sirve main.go)
+│   ├── index.html                # Página principal: formulario y lista de usuarios
+│   ├── 404.html                  # Página de error 404
 │   ├── css/
-│   │   ├── 404.css
-│   │   └── index.css
-│   ├── 404.html
-│   └── index.html
-├── main.go                       # Arranque: conexión a la DB, handlers.Register y servidor estático
+│   │   └── styles.css            # Estilos compartidos por index.html y 404.html
+│   └── js/
+│       └── app.js                # Lógica del cliente: fetch, render del DOM y eventos
 ├── handlers/                     # API REST (paquete handlers)
 │   ├── routes.go                 # Register(): registra las rutas de todas las entidades
 │   ├── helpers.go                # Lectura de ids, validación y conversiones sql.Null*
@@ -163,6 +184,7 @@ Trabajo-Cursada-tp3/
 │   ├── tags.go                   # Handlers de tags
 │   ├── groups.go                 # Handlers de grupos y miembros
 │   └── tasks.go                  # Handlers de tareas y de sus tags
+├── main.go                       # Arranque: conexión a la DB, handlers.Register y servidor estático
 ├── request.hurl                  # Pruebas de la API con Hurl
 ├── sqlc.yaml                     # Configuración de sqlc (motor, rutas, paquete de salida)
 ├── dockerfile                    # Imagen de la aplicación (build multi-stage)
@@ -179,12 +201,12 @@ Trabajo-Cursada-tp3/
 ### Motor de base de datos y estrategia de acceso a datos
 
 - **PostgreSQL 16** corriendo en un contenedor Docker (`docker-compose.yml`).
-- El acceso a los datos **no usa un ORM**: se escribe SQL plano en `db/queries/users.sql`, y **[sqlc](https://sqlc.dev/)** genera código Go type-safe a partir de esas queries y del esquema. Los handlers de la API llaman directamente a esas funciones generadas.
+- El acceso a los datos **no usa un ORM**: se escribe SQL plano en `db/queries/`, y **[sqlc](https://sqlc.dev/)** genera código Go type-safe a partir de esas queries y del esquema. Los handlers de la API llaman directamente a esas funciones generadas.
 - El driver utilizado para conectarse a Postgres es **[pgx](https://github.com/jackc/pgx)** (vía su interfaz `database/sql`).
 
 ### Modelo de datos
 
-El esquema (`db/schema/schema.sql`) define `users`, `folders`, `tags`, `groups`, `groups_members`, `tasks` y `tasks_tags`. A modo de ejemplo, la tabla `users`:
+El esquema (`db/schema/schema.sql`) define `users`, `folders`, `tags`, `groups`, `groups_members`, `tasks` y `tasks_tags`. A modo de ejemplo, la tabla `users`, que es la que usa el frontend:
 
 | Columna         | Tipo                       | Restricciones                                                         |
 |-----------------|----------------------------|-----------------------------------------------------------------------|
@@ -199,10 +221,10 @@ El esquema (`db/schema/schema.sql`) define `users`, `folders`, `tags`, `groups`,
 **Decisiones de diseño:**
 
 - `handle` y `email` son `UNIQUE` porque identifican al usuario de forma inequívoca. Se normalizan a minúsculas (a nivel de base con `CHECK` y en las queries con `LOWER()`) para evitar duplicados como `Juan` vs `juan`.
-- Nunca se persiste la contraseña en texto plano: se guarda `password_hash`, y la API nunca lo devuelve en sus respuestas.
+- La API nunca devuelve `password_hash` en sus respuestas.
 - La API valida en `handlers/` las mismas reglas que el esquema (no vacío y largo máximo de cada columna), de modo que los datos inválidos se rechazan con `400` antes de llegar a la base.
 - Los errores de unicidad de Postgres (código `23505`) se traducen a `409 Conflict`, y las filas inexistentes (`sql.ErrNoRows`) a `404 Not Found`.
-- El `PUT` usa una transacción para que la actualización de los tres campos sea atómica.
+- El `PUT` de usuarios usa una transacción para que la actualización de los tres campos sea atómica.
 - `updated_at` se actualiza manualmente en cada query de `UPDATE`.
 
 ### Inicialización de la base de datos
@@ -218,25 +240,26 @@ Postgres lo ejecuta automáticamente **una sola vez**, la primera vez que se lev
 
 ## Pruebas
 
-El proyecto tiene dos niveles de pruebas:
+El proyecto tiene dos niveles de pruebas automáticas:
 
-1. **Tests de integración en Go** (`db/sqlc/*_test.go`): un archivo por cada `.sql`, que verifica las queries generadas por sqlc contra Postgres real. Se pueden correr solos con `make test-db`.
-2. **Pruebas de la API con [Hurl](https://hurl.dev/)** (`request.hurl`): hacen requests HTTP reales al servidor y verifican códigos de estado y contenido de las respuestas. El archivo cubre, en orden:
-   1. Crear usuario (`201`, con normalización a minúsculas y captura del `id`)
-   2. Crear con datos inválidos (`400`)
-   3. Crear con `handle`/`email` repetido (`409`)
-   4. Listar usuarios (`200`)
-   5. Obtener usuario por `id` (`200`)
-   6. Obtener un `id` inexistente (`404`)
-   7. Actualizar usuario (`200`)
-   8. Actualizar con datos inválidos (`400`)
-   9. Actualizar un `id` inexistente (`404`)
-   10. Eliminar usuario (`204`)
-   11. Verificar que ya no existe (`404`)
-   12. En adelante, el recorrido completo de carpetas, tags, grupos, miembros, tareas y tags de tareas, incluyendo los casos de permisos (`404`), validación (`400`) y duplicados (`409`)
+1. **Tests de integración en Go** (`db/sqlc/*_test.go`): un archivo por cada `.sql`, que verifica las queries generadas por sqlc contra Postgres real.
+2. **Pruebas de la API con [Hurl](https://hurl.dev/)** (`request.hurl`): hacen requests HTTP reales al servidor y verifican códigos de estado y contenido de las respuestas. Empiezan por el CRUD de usuarios (alta, validación, duplicados, listado, consulta, actualización y borrado, con sus casos `400`, `404` y `409`) y siguen con el recorrido completo de carpetas, tags, grupos, miembros, tareas y tags de tareas, incluyendo los casos de permisos.
+
+El frontend **no tiene pruebas automáticas**: se verifica a mano desde el navegador (ver el siguiente apartado).
+
+### Probar el frontend a mano
+
+Con la aplicación levantada (ver [Cómo ejecutarlo](#cómo-ejecutarlo)), abrir `http://localhost:8080` y comprobar:
+
+- La lista carga al abrir la página (o muestra el mensaje de lista vacía).
+- Crear un usuario lo agrega a la lista sin recargar la página.
+- Crear otro con el mismo `handle` o email muestra el error de duplicado.
+- Eliminar un usuario lo quita de la lista.
+- Una ruta inexistente (por ejemplo `http://localhost:8080/nada`) muestra la página 404.
 
 ## Tecnologías utilizadas
 
+- **HTML, CSS (Flexbox y Grid) y JavaScript** sin frameworks ni librerías, usando la API `fetch` del navegador
 - **Go** 1.27 (`net/http` de la biblioteca estándar, sin frameworks)
 - **PostgreSQL 16** (vía Docker)
 - **[sqlc](https://sqlc.dev/)** para generar código Go a partir de SQL
@@ -251,30 +274,41 @@ Para clonar y ejecutar el proyecto necesitás tener instalado:
 
 - [Go](https://go.dev/dl/) 1.27 o superior
 - [Docker](https://www.docker.com/) y Docker Compose (Docker Desktop los incluye)
-- [Hurl](https://hurl.dev/docs/installation.html)
+- [Hurl](https://hurl.dev/docs/installation.html) (solo para correr las pruebas de la API)
 - `make` (viene preinstalado en Linux/macOS; en Windows se puede usar WSL, Git Bash con make, o ejecutar los comandos del Makefile manualmente)
 
 ## Cómo ejecutarlo
 
-### 1. Clonar el repositorio
+### 1. Clonar el repositorio y entrar al proyecto
 
 ```bash
 git clone <URL-del-repositorio>
+cd Trabajo-Cursada-tp4
 ```
 
-### 2. Entrar al proyecto
-
-```bash
-cd Trabajo-Cursada-tp3
-```
-
-### 3. Cambiar de branch
+### 2. Cambiar de branch (si corresponde)
 
 ```bash
 git checkout <nombre-de-la-branch>
 ```
 
-### 4. Ejecutar todo con un solo comando
+### 3. Levantar la aplicación y usar la interfaz
+
+```bash
+make docker-up
+```
+
+Esto crea el `.env` a partir de `.env.example` si no existe, construye la imagen y levanta Postgres y el servidor Go, esperando a que estén listos. Después, abrir **http://localhost:8080** en el navegador.
+
+Para apagar todo (eliminando contenedores y volumen, es decir, **los usuarios cargados**):
+
+```bash
+make docker-down
+```
+
+> Si el volumen de Postgres ya existía de una corrida anterior, el esquema no se vuelve a aplicar. Ante cualquier duda, `make docker-down` y volver a levantar.
+
+### 4. Correr todas las pruebas con un solo comando
 
 ```bash
 make test
