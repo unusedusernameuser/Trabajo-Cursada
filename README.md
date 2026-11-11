@@ -1,4 +1,4 @@
-# Gestor de tareas
+# Gestor de Tareas
 
 Trabajo de cursada de la materia **Programación Web 2026**.
 
@@ -129,10 +129,12 @@ Respuesta (`201`). Notar que `handle` y `email` se normalizan a minúsculas y qu
   "handle": "juan",
   "display_name": "Juan Pérez",
   "email": "juan@example.com",
-  "created_at": "...",
-  "updated_at": "..."
+  "created_at": { "Time": "2026-11-11T10:00:00Z", "Valid": true },
+  "updated_at": { "Time": "2026-11-11T10:00:00Z", "Valid": true }
 }
 ```
+
+Las fechas llegan como objeto (`{"Time": ..., "Valid": ...}`) porque las columnas `created_at` y `updated_at` admiten `NULL` y sqlc las mapea a `sql.NullTime`. El frontend lo contempla en `formatDate()`.
 
 ### Cuerpo de `PUT /users/{id}`
 
