@@ -51,5 +51,8 @@ Thumbs.db
 /db/sqlc/tasks.sql.go
 /db/sqlc/users.sql.go
 
+# Codigo generado por 'templ generate'
+*_templ.go
+
 # Logs
 *.log

@@ -1,0 +1,17 @@
+package views
+
+import db "my_sqlc_project/db/sqlc"
+
+// IndexPage es la página principal: usa el layout y compone el formulario y la lista.
+templ IndexPage(users []db.ListUsersRow, form UserFormValues) {
+	@Layout("Gestor de Tareas · Usuarios") {
+		<header>
+			<h1>Gestor de Tareas</h1>
+			<p>Creá y administrá los usuarios que van a organizar sus tareas, carpetas y grupos.</p>
+		</header>
+		<div class="grid">
+			@UserForm(form)
+			@UserList(users)
+		</div>
+	}
+}

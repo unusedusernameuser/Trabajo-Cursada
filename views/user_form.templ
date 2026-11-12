@@ -1,0 +1,33 @@
+package views
+
+// UserForm renderiza el formulario para crear un usuario.
+// Es un <form> clásico: hace POST /users y el servidor responde con un redirect (PRG).
+templ UserForm(f UserFormValues) {
+	<article>
+		<header>
+			<h2>Nuevo usuario</h2>
+		</header>
+		<form method="post" action="/users">
+			if f.Error != "" {
+				<p role="alert"><mark>{ f.Error }</mark></p>
+			}
+			<label>
+				Nombre de usuario
+				<input name="handle" type="text" maxlength="31" autocomplete="off" value={ f.Handle } required/>
+			</label>
+			<label>
+				Nombre para mostrar
+				<input name="display_name" type="text" maxlength="63" autocomplete="off" value={ f.DisplayName } required/>
+			</label>
+			<label>
+				Email
+				<input name="email" type="email" maxlength="255" autocomplete="off" value={ f.Email } required/>
+			</label>
+			<label>
+				Contraseña
+				<input name="password" type="password" maxlength="255" autocomplete="new-password" required/>
+			</label>
+			<button type="submit">Crear usuario</button>
+		</form>
+	</article>
+}

@@ -1,178 +1,131 @@
 package handlers
 
 import (
-	"database/sql"
-	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	db "my_sqlc_project/db/sqlc"
+	"my_sqlc_project/views"
 )
 
-// userHandler agrupa los handlers CRUD de la entidad users.
-// conn se usa solo para abrir la transacción del PUT.
+// userHandler agrupa los handlers de la entidad users.
 type userHandler struct {
-	conn    *sql.DB
 	queries *db.Queries
 }
 
-// userInput es el cuerpo JSON que reciben POST y PUT.
-type userInput struct {
-	Handle       string `json:"handle"`
-	DisplayName  string `json:"display_name"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
+// GET /
+// Obtiene todos los usuarios con ListUsers y renderiza la página completa.
+func (h *userHandler) index(w http.ResponseWriter, r *http.Request) {
+	h.renderIndex(w, r, http.StatusOK, views.UserFormValues{})
 }
 
-func registerUserRoutes(conn *sql.DB, queries *db.Queries) {
-	h := &userHandler{conn: conn, queries: queries}
+// renderIndex lee la lista de la base y escribe IndexPage en el ResponseWriter.
+// Se usa también para volver a mostrar el formulario con un error (400/409).
+func (h *userHandler) renderIndex(w http.ResponseWriter, r *http.Request, status int, form views.UserFormValues) {
+	users, err := h.queries.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("error al listar usuarios: %v", err)
+		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
+		return
+	}
 
-	http.HandleFunc("POST /users", h.create)
-	http.HandleFunc("GET /users", h.list)
-	http.HandleFunc("GET /users/{id}", h.get)
-	http.HandleFunc("PUT /users/{id}", h.update)
-	http.HandleFunc("DELETE /users/{id}", h.delete)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := views.IndexPage(users, form).Render(r.Context(), w); err != nil {
+		log.Printf("error al renderizar la página: %v", err)
+	}
 }
 
 // POST /users
+// Patrón Post/Redirect/Get: si se guarda, redirige a GET / para que el navegador
+// pida la página de nuevo (así recargarla no reenvía el formulario).
 func (h *userHandler) create(w http.ResponseWriter, r *http.Request) {
-	in, ok := readUserInput(w, r, true)
-	if !ok {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "formulario inválido", http.StatusBadRequest)
 		return
 	}
 
-	user, err := h.queries.CreateUser(r.Context(), db.CreateUserParams{
-		Handle:       in.Handle,
-		DisplayName:  in.DisplayName,
-		Email:        in.Email,
-		PasswordHash: in.PasswordHash,
+	form := views.UserFormValues{
+		Handle:      strings.TrimSpace(r.PostFormValue("handle")),
+		DisplayName: strings.TrimSpace(r.PostFormValue("display_name")),
+		Email:       strings.TrimSpace(r.PostFormValue("email")),
+	}
+	// Igual que en la entrega anterior, la contraseña se guarda tal cual en password_hash;
+	// en una aplicación real se hashearía acá (por ejemplo con bcrypt) antes de guardarla.
+	password := r.PostFormValue("password")
+
+	if msg := validateUser(form, password); msg != "" {
+		form.Error = msg
+		h.renderIndex(w, r, http.StatusBadRequest, form)
+		return
+	}
+
+	_, err := h.queries.CreateUser(r.Context(), db.CreateUserParams{
+		Handle:       form.Handle,
+		DisplayName:  form.DisplayName,
+		Email:        form.Email,
+		PasswordHash: password,
 	})
 	if err != nil {
-		writeUserDBError(w, err)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+			form.Error = "ya existe un usuario con ese handle o email"
+			h.renderIndex(w, r, http.StatusConflict, form)
+			return
+		}
+		log.Printf("error al crear usuario: %v", err)
+		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, user)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// GET /users
-func (h *userHandler) list(w http.ResponseWriter, r *http.Request) {
-	users, err := h.queries.ListUsers(r.Context())
-	if err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-	if users == nil {
-		users = []db.ListUsersRow{} // para responder [] y no null
-	}
-
-	writeJSON(w, http.StatusOK, users)
-}
-
-// GET /users/{id}
-func (h *userHandler) get(w http.ResponseWriter, r *http.Request) {
-	id, ok := readID(w, r)
-	if !ok {
-		return
-	}
-
-	user, err := h.queries.GetUserByID(r.Context(), id)
-	if err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, user)
-}
-
-// PUT /users/{id}
-func (h *userHandler) update(w http.ResponseWriter, r *http.Request) {
-	id, ok := readID(w, r)
-	if !ok {
-		return
-	}
-	in, ok := readUserInput(w, r, false)
-	if !ok {
-		return
-	}
-
-	ctx := r.Context()
-
-	tx, err := h.conn.BeginTx(ctx, nil)
-	if err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-	defer tx.Rollback()
-	q := h.queries.WithTx(tx)
-
-	if _, err := q.UpdateHandle(ctx, db.UpdateHandleParams{ID: id, Handle: in.Handle}); err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-	if _, err := q.UpdateEmail(ctx, db.UpdateEmailParams{ID: id, Email: in.Email}); err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-	user, err := q.UpdateDisplayName(ctx, db.UpdateDisplayNameParams{ID: id, DisplayName: in.DisplayName})
-	if err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
-		writeUserDBError(w, err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, user)
-}
-
-// DELETE /users/{id}
+// POST /users/{id}/delete
+// Los formularios HTML solo soportan GET y POST, por eso el borrado es un POST.
+// También termina con un redirect a /.
 func (h *userHandler) delete(w http.ResponseWriter, r *http.Request) {
-	id, ok := readID(w, r)
-	if !ok {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 32)
+	if err != nil || id <= 0 {
+		http.Error(w, "id debe ser un entero positivo", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.queries.DeleteUser(r.Context(), id); err != nil {
-		writeUserDBError(w, err)
+	if err := h.queries.DeleteUser(r.Context(), int32(id)); err != nil {
+		log.Printf("error al eliminar usuario: %v", err)
+		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// readUserInput decodifica y valida el cuerpo JSON. Si algo falla ya responde 400.
-// requirePassword indica si password_hash es obligatorio (POST) o se ignora (PUT).
-func readUserInput(w http.ResponseWriter, r *http.Request, requirePassword bool) (userInput, bool) {
-	var in userInput
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, "el cuerpo debe ser un JSON válido")
-		return in, false
-	}
-
-	// Mismas reglas que schema.sql: no vacío y largo máximo de cada columna.
+// validateUser aplica las mismas reglas que schema.sql: no vacío y largo máximo.
+// Devuelve "" si todo está bien o el mensaje de error.
+func validateUser(f views.UserFormValues, password string) string {
 	switch {
-	case strings.TrimSpace(in.Handle) == "":
-		writeError(w, http.StatusBadRequest, "handle es obligatorio")
-	case utf8.RuneCountInString(in.Handle) > 31:
-		writeError(w, http.StatusBadRequest, "handle no puede superar los 31 caracteres")
-	case strings.TrimSpace(in.DisplayName) == "":
-		writeError(w, http.StatusBadRequest, "display_name es obligatorio")
-	case utf8.RuneCountInString(in.DisplayName) > 63:
-		writeError(w, http.StatusBadRequest, "display_name no puede superar los 63 caracteres")
-	case strings.TrimSpace(in.Email) == "":
-		writeError(w, http.StatusBadRequest, "email es obligatorio")
-	case utf8.RuneCountInString(in.Email) > 255:
-		writeError(w, http.StatusBadRequest, "email no puede superar los 255 caracteres")
-	case requirePassword && strings.TrimSpace(in.PasswordHash) == "":
-		writeError(w, http.StatusBadRequest, "password_hash es obligatorio")
-	case requirePassword && utf8.RuneCountInString(in.PasswordHash) > 255:
-		writeError(w, http.StatusBadRequest, "password_hash no puede superar los 255 caracteres")
-	default:
-		return in, true
+	case f.Handle == "":
+		return "el nombre de usuario es obligatorio"
+	case utf8.RuneCountInString(f.Handle) > 31:
+		return "el nombre de usuario no puede superar los 31 caracteres"
+	case f.DisplayName == "":
+		return "el nombre para mostrar es obligatorio"
+	case utf8.RuneCountInString(f.DisplayName) > 63:
+		return "el nombre para mostrar no puede superar los 63 caracteres"
+	case f.Email == "":
+		return "el email es obligatorio"
+	case utf8.RuneCountInString(f.Email) > 255:
+		return "el email no puede superar los 255 caracteres"
+	case strings.TrimSpace(password) == "":
+		return "la contraseña es obligatoria"
+	case utf8.RuneCountInString(password) > 255:
+		return "la contraseña no puede superar los 255 caracteres"
 	}
-	return in, false
+	return ""
 }

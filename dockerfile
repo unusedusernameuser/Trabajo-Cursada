@@ -8,6 +8,5 @@ RUN CGO_ENABLED=0 go build -o /out/server .
 FROM alpine:3.20
 WORKDIR /app
 COPY --from=build /out/server ./server
-COPY static ./static
 EXPOSE 8080
 CMD ["./server"]

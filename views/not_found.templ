@@ -1,0 +1,14 @@
+package views
+
+// NotFoundPage reemplaza al antiguo static/404.html.
+templ NotFoundPage() {
+	@Layout("404 - Página no encontrada") {
+		<article>
+			<header>
+				<h1>404 · Página no encontrada</h1>
+			</header>
+			<p>La ruta a la que intentás acceder no existe, fue movida o eliminada.</p>
+			<a href="/" role="button">Volver al inicio</a>
+		</article>
+	}
+}

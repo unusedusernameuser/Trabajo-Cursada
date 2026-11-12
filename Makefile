@@ -13,7 +13,7 @@ HURL_FILE    := request.hurl
 # Reintentos por si la app todavia esta arrancando cuando empieza hurl
 HURL_RETRY   := 15
 
-.PHONY: all test hurl sqlc build docker-down docker-up clean
+.PHONY: all test hurl deps templ sqlc generate build run db-up docker-down docker-up clean
 
 # Punto de entrada por defecto: corre todo el ciclo completo.
 all: test
@@ -22,13 +22,40 @@ all: test
 
 SQLC_VERSION := v1.31.1
 
+# Una sola vez (o al clonar el repo): registra templ como dependencia y herramienta
+# del módulo (go.mod / go.sum). Después, `go tool templ` usa esa misma versión.
+deps:
+	@echo "==> Instalando templ como dependencia del módulo..."
+	go get github.com/a-h/templ@latest
+	go get -tool github.com/a-h/templ/cmd/templ@latest
+	go mod tidy
+
 sqlc:
 	@echo "==> Generando código con sqlc..."
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION) generate
 
-build: sqlc
+# Compila los .templ de views/ a código Go (views/*_templ.go).
+templ:
+	@echo "==> Generando componentes con templ..."
+	go tool templ generate
+
+generate: sqlc templ
+
+build: generate
 	@echo "==> Compilando el proyecto..."
 	go build ./...
+
+# Levanta solo el motor de base de datos (Postgres) para correr el servidor en la máquina local.
+db-up:
+	@echo "==> Levantando Postgres y esperando a que esté listo..."
+	$(COMPOSE) up -d --wait --wait-timeout $(WAIT_TIMEOUT) db
+
+# Flujo de desarrollo: genera código (sqlc + templ), levanta Postgres y corre el servidor
+# local en http://localhost:8080. Con Ctrl+C se detiene el servidor (la DB queda arriba;
+# apagarla con `make docker-down`).
+run: generate db-up
+	@echo "==> Iniciando el servidor en http://localhost:8080 ..."
+	DATABASE_URL="$(DATABASE_URL)" go run .
 
 docker-down:
 	@echo "==> Eliminando contenedores y volúmenes previos..."
@@ -37,9 +64,9 @@ docker-down:
 # --wait hace que Compose no devuelva el control hasta que el servicio
 # reporte "healthy" según el healthcheck definido en docker-compose.yml
 # (pg_isready). Reemplaza a un script de espera separado.
-docker-up:
+docker-up: generate
 	@echo "==> Levantando contenedores y esperando a que estén listos..."
-	$(COMPOSE) up -d --wait --wait-timeout $(WAIT_TIMEOUT)
+	$(COMPOSE) up -d --build --wait --wait-timeout $(WAIT_TIMEOUT)
 
 ## ---- 2) Ejecución de tests --------------------------------------------
 

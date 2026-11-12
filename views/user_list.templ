@@ -1,0 +1,48 @@
+package views
+
+import (
+	"strconv"
+
+	db "my_sqlc_project/db/sqlc"
+)
+
+// UserList recibe el slice que devuelve ListUsers de sqlc y renderiza la tabla.
+templ UserList(users []db.ListUsersRow) {
+	<article>
+		<header>
+			<h2>Usuarios ({ strconv.Itoa(len(users)) })</h2>
+		</header>
+		if len(users) == 0 {
+			<p>Todavía no hay usuarios. Creá el primero con el formulario.</p>
+		} else {
+			<div class="overflow-auto">
+				<table class="striped">
+					<thead>
+						<tr>
+							<th scope="col">Usuario</th>
+							<th scope="col">Nombre</th>
+							<th scope="col">Email</th>
+							<th scope="col">Alta</th>
+							<th scope="col"><span class="visually-hidden">Acciones</span></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, u := range users {
+							<tr>
+								<td>{ "@" + u.Handle }</td>
+								<td>{ u.DisplayName }</td>
+								<td>{ u.Email }</td>
+								<td>{ formatDate(u.CreatedAt) }</td>
+								<td>
+									<form method="post" action={ templ.SafeURL(userDeleteURL(u.ID)) } onsubmit="return confirm('¿Eliminar este usuario?')">
+										<button type="submit" class="secondary outline">Eliminar</button>
+									</form>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</article>
+}
