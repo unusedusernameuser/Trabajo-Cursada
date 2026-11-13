@@ -1,4 +1,4 @@
-# Pruebas de la API (usuarios, carpetas, tags, grupos, tareas).
+# Pruebas de la API (usuarios, carpetas, tags, tareas).
 # Requiere el servidor corriendo en http://localhost:8080 (ver README).
 # Ejecutar con:  hurl --test request.hurl
 
@@ -104,11 +104,11 @@ HTTP 404
 
 
 # ======================================================================
-# Carpetas, tags, grupos y tareas
+# Carpetas, tags y tareas
 # Todas las rutas cuelgan de /users/{user_id} (quien consulta o modifica).
 # ======================================================================
 
-# 12. Crear dos usuarios: el dueño (ana) y un miembro (beto)
+# 12. Crear dos usuarios: ana y beto
 POST http://localhost:8080/users
 Content-Type: application/json
 { "handle": "ana", "display_name": "Ana", "email": "ana@example.com", "password_hash": "h" }
@@ -214,99 +214,15 @@ jsonpath "$.tag_name" == "importante"
 GET http://localhost:8080/users/{{beto_id}}/tags/{{tag_id}}
 HTTP 404
 
-# ---- Grupos y miembros ----
-
-# 23. Crear grupo -> 201; el dueño queda como miembro
-POST http://localhost:8080/users/{{ana_id}}/groups
-Content-Type: application/json
-{ "group_name": "Proyecto final", "group_description": "TP integrador" }
-HTTP 201
-[Captures]
-group_id: jsonpath "$.id"
-[Asserts]
-jsonpath "$.owner_id" == {{ana_id}}
-jsonpath "$.group_description" == "TP integrador"
-
-GET http://localhost:8080/groups/{{group_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.group_name" == "Proyecto final"
-
-GET http://localhost:8080/groups/{{group_id}}/members/count
-HTTP 200
-[Asserts]
-jsonpath "$.count" == 1
-
-# 24. Agregar a beto -> 201; repetido -> 409; grupo inexistente -> 404
-POST http://localhost:8080/groups/{{group_id}}/members
-Content-Type: application/json
-{ "user_id": {{beto_id}} }
-HTTP 201
-[Asserts]
-jsonpath "$.user_id" == {{beto_id}}
-
-POST http://localhost:8080/groups/{{group_id}}/members
-Content-Type: application/json
-{ "user_id": {{beto_id}} }
-HTTP 409
-
-POST http://localhost:8080/groups/2147483647/members
-Content-Type: application/json
-{ "user_id": {{beto_id}} }
-HTTP 404
-
-# 25. Miembros: listar, contar y consultar pertenencia
-GET http://localhost:8080/groups/{{group_id}}/members
-HTTP 200
-[Asserts]
-jsonpath "$" count == 2
-
-GET http://localhost:8080/groups/{{group_id}}/members/count
-HTTP 200
-[Asserts]
-jsonpath "$.count" == 2
-
-GET http://localhost:8080/groups/{{group_id}}/members/{{beto_id}}
-HTTP 200
-[Asserts]
-jsonpath "$.is_member" == true
-
-# 26. Grupos de un usuario: como miembro y como dueño
-GET http://localhost:8080/users/{{beto_id}}/groups
-HTTP 200
-[Asserts]
-jsonpath "$" count == 1
-
-GET http://localhost:8080/users/{{beto_id}}/groups?owner=true
-HTTP 200
-[Asserts]
-jsonpath "$" count == 0
-
-# 27. Solo el dueño puede modificar el grupo
-PUT http://localhost:8080/users/{{beto_id}}/groups/{{group_id}}
-Content-Type: application/json
-{ "group_name": "Hackeado" }
-HTTP 404
-
-PUT http://localhost:8080/users/{{ana_id}}/groups/{{group_id}}
-Content-Type: application/json
-{ "group_name": "Proyecto final 2" }
-HTTP 200
-[Asserts]
-jsonpath "$.group_name" == "Proyecto final 2"
-jsonpath "$.group_description" == null
-
 # ---- Tareas ----
 
-# 28. Crear tarea grupal con carpeta, asignada a beto -> 201
+# 23. Crear tarea con carpeta -> 201
 POST http://localhost:8080/users/{{ana_id}}/tasks
 Content-Type: application/json
 {
   "title": "Armar informe",
   "task_description": "Primera versión",
   "folder_id": {{folder_id}},
-  "group_id": {{group_id}},
-  "assigned_to": {{beto_id}},
   "due_date": "2030-01-01T00:00:00Z",
   "task_priority": "alta"
 }
@@ -318,10 +234,9 @@ jsonpath "$.title" == "Armar informe"
 jsonpath "$.task_status" == "pendiente"
 jsonpath "$.task_priority" == "alta"
 jsonpath "$.folder_id" == {{folder_id}}
-jsonpath "$.assigned_to" == {{beto_id}}
 jsonpath "$.completed_at" == null
 
-# 29. Crear con datos inválidos -> 400
+# 24. Crear con datos inválidos -> 400
 POST http://localhost:8080/users/{{ana_id}}/tasks
 Content-Type: application/json
 { "title": "" }
@@ -332,23 +247,26 @@ Content-Type: application/json
 { "title": "Prioridad rara", "task_priority": "urgentisima" }
 HTTP 400
 
-# 30. Carpeta de otro usuario, o grupo del que no es miembro -> 400
+# 25. Carpeta de otro usuario -> 400
 POST http://localhost:8080/users/{{beto_id}}/tasks
 Content-Type: application/json
 { "title": "Carpeta ajena", "folder_id": {{folder_id}} }
 HTTP 400
 
-# 31. Beto (asignado y miembro) puede ver la tarea; un usuario inexistente no
-GET http://localhost:8080/users/{{beto_id}}/tasks/{{task_id}}
+# 26. Ana ve su tarea; otro usuario (o uno inexistente) no -> 404
+GET http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}
 HTTP 200
 [Asserts]
 jsonpath "$.id" == {{task_id}}
 
+GET http://localhost:8080/users/{{beto_id}}/tasks/{{task_id}}
+HTTP 404
+
 GET http://localhost:8080/users/2147483647/tasks/{{task_id}}
 HTTP 404
 
-# 32. Beto completa la tarea: completed_at se completa; al reabrir vuelve a null
-PUT http://localhost:8080/users/{{beto_id}}/tasks/{{task_id}}/status
+# 27. Ana completa la tarea: completed_at se completa; al reabrir vuelve a null; otro usuario no puede -> 404
+PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/status
 Content-Type: application/json
 { "task_status": "completada" }
 HTTP 200
@@ -363,12 +281,17 @@ HTTP 200
 [Asserts]
 jsonpath "$.completed_at" == null
 
+PUT http://localhost:8080/users/{{beto_id}}/tasks/{{task_id}}/status
+Content-Type: application/json
+{ "task_status": "completada" }
+HTTP 404
+
 PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/status
 Content-Type: application/json
 { "task_status": "terminada" }
 HTTP 400
 
-# 33. Actualizar la tarea (solo el creador)
+# 28. Actualizar la tarea (solo el dueño)
 PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}
 Content-Type: application/json
 { "title": "Armar informe final", "task_description": null, "due_date": "2030-02-01T00:00:00Z", "task_priority": "baja" }
@@ -383,7 +306,7 @@ Content-Type: application/json
 { "title": "Hackeada", "task_priority": "baja" }
 HTTP 404
 
-# 34. Listados: por usuario (con filtros), por carpeta, por grupo y asignadas
+# 29. Listados: por usuario (con filtros) y por carpeta; beto no ve nada de ana
 GET http://localhost:8080/users/{{ana_id}}/tasks
 HTTP 200
 [Asserts]
@@ -407,17 +330,12 @@ HTTP 200
 [Asserts]
 jsonpath "$" count == 1
 
-GET http://localhost:8080/users/{{beto_id}}/groups/{{group_id}}/tasks
+GET http://localhost:8080/users/{{beto_id}}/tasks
 HTTP 200
 [Asserts]
-jsonpath "$" count == 1
+jsonpath "$" count == 0
 
-GET http://localhost:8080/users/{{beto_id}}/assigned-tasks
-HTTP 200
-[Asserts]
-jsonpath "$" count == 1
-
-# 35. Tareas vencidas: una con fecha pasada aparece, la futura no
+# 30. Tareas vencidas: una con fecha pasada aparece, la futura no
 POST http://localhost:8080/users/{{ana_id}}/tasks
 Content-Type: application/json
 { "title": "Vencida", "due_date": "2020-01-01T00:00:00Z" }
@@ -431,7 +349,7 @@ HTTP 200
 jsonpath "$" count == 1
 jsonpath "$[0].id" == {{overdue_id}}
 
-# 36. Mover a carpeta (null la saca), asignar/desasignar y adjuntar archivo
+# 31. Mover a carpeta (null la saca) y adjuntar archivo
 PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/folder
 Content-Type: application/json
 { "folder_id": null }
@@ -446,13 +364,6 @@ HTTP 200
 [Asserts]
 jsonpath "$.folder_id" == {{folder_id}}
 
-PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/assignee
-Content-Type: application/json
-{ "assigned_to": null }
-HTTP 200
-[Asserts]
-jsonpath "$.assigned_to" == null
-
 PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/attachment
 Content-Type: application/json
 { "attachment_path": "/uploads/informe.pdf" }
@@ -462,7 +373,7 @@ jsonpath "$.attachment_path" == "/uploads/informe.pdf"
 
 # ---- Tags de una tarea ----
 
-# 37. Asociar el tag a la tarea, listar y buscar tareas por tag
+# 32. Asociar el tag a la tarea, listar y buscar tareas por tag
 PUT http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/tags/{{tag_id}}
 HTTP 200
 [Asserts]
@@ -480,11 +391,11 @@ HTTP 200
 jsonpath "$" count == 1
 jsonpath "$[0].id" == {{task_id}}
 
-# 38. Un tag de otro usuario no se puede asociar -> 404
+# 33. Un tag de otro usuario no se puede asociar -> 404
 PUT http://localhost:8080/users/{{beto_id}}/tasks/{{task_id}}/tags/{{tag_id}}
 HTTP 404
 
-# 39. Quitar el tag y limpiar tags
+# 34. Quitar el tag y limpiar tags
 DELETE http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}/tags/{{tag_id}}
 HTTP 204
 
@@ -506,19 +417,7 @@ jsonpath "$" count == 0
 
 # ---- Bajas ----
 
-# 40. Quitar a beto del grupo; el dueño no se puede quitar
-DELETE http://localhost:8080/groups/{{group_id}}/members/{{beto_id}}
-HTTP 204
-
-DELETE http://localhost:8080/groups/{{group_id}}/members/{{ana_id}}
-HTTP 204
-
-GET http://localhost:8080/groups/{{group_id}}/members/count
-HTTP 200
-[Asserts]
-jsonpath "$.count" == 1
-
-# 41. Borrar tarea, tag, carpeta y grupo
+# 35. Borrar tarea, tag y carpeta
 DELETE http://localhost:8080/users/{{ana_id}}/tasks/{{task_id}}
 HTTP 204
 
@@ -531,13 +430,7 @@ HTTP 204
 DELETE http://localhost:8080/users/{{ana_id}}/folders/{{folder_id}}
 HTTP 204
 
-DELETE http://localhost:8080/users/{{ana_id}}/groups/{{group_id}}
-HTTP 204
-
-GET http://localhost:8080/groups/{{group_id}}
-HTTP 404
-
-# 42. Borrar los usuarios de prueba (también borra en cascada sus datos restantes)
+# 36. Borrar los usuarios de prueba (también borra en cascada sus datos restantes)
 DELETE http://localhost:8080/users/{{ana_id}}
 HTTP 204
 
