@@ -12,6 +12,8 @@
     --danger-bg: rgba(248, 113, 113, 0.12);
     --success: #4ade80;
     --success-bg: rgba(74, 222, 128, 0.12);
+    --warn: #fbbf24;
+    --warn-bg: rgba(251, 191, 36, 0.12);
 }
 
 * {
@@ -94,7 +96,9 @@ label {
     color: var(--text-secondary);
 }
 
-input {
+input,
+select,
+textarea {
     font: inherit;
     color: var(--text-primary);
     background-color: var(--input-bg);
@@ -103,7 +107,9 @@ input {
     padding: 10px 12px;
 }
 
-input:focus-visible {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
     border-color: var(--accent);
@@ -240,7 +246,9 @@ input:focus-visible {
 
 @media (prefers-reduced-motion: no-preference) {
     .btn,
-    input {
+    input,
+    select,
+    textarea {
         transition: background-color 0.15s, border-color 0.15s, filter 0.15s;
     }
 }
@@ -317,4 +325,520 @@ input:focus-visible {
     .btn-home:hover {
         transform: translateY(-1px);
     }
+}
+
+/* ===================================================================
+   Página de tareas de un usuario (static/tasks.html)
+   =================================================================== */
+
+a.btn {
+    display: inline-block;
+    text-decoration: none;
+    text-align: center;
+}
+
+.btn-auto {
+    width: auto;
+}
+
+.btn-sm {
+    padding: 8px 12px;
+    font-size: 0.875rem;
+}
+
+.btn-secondary {
+    padding: 8px 14px;
+    font-size: 0.9rem;
+    background-color: var(--accent-glow);
+    color: var(--accent);
+    border-color: transparent;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    border-color: var(--accent);
+}
+
+.btn-ghost {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+.btn-ghost:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+/* Lista de usuarios: botones de cada fila */
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 520px) {
+    .user-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .user-actions {
+        justify-content: flex-end;
+    }
+}
+
+.page-wide {
+    max-width: 1180px;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 14px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.back-link:hover {
+    color: var(--accent);
+}
+
+.back-link:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+textarea {
+    resize: vertical;
+}
+
+select {
+    cursor: pointer;
+}
+
+.message {
+    margin-bottom: 18px;
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (min-width: 900px) {
+    .workspace {
+        grid-template-columns: 290px 1fr;
+    }
+
+    .sidebar {
+        position: sticky;
+        top: 20px;
+    }
+}
+
+.sidebar,
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+}
+
+.sidebar .panel {
+    padding: 18px;
+}
+
+.sidebar .panel h2 {
+    margin-bottom: 12px;
+}
+
+/* Carpetas y tags */
+.nav-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.nav-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font: inherit;
+    font-size: 0.925rem;
+    text-align: left;
+    color: var(--text-primary);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 7px 10px;
+    cursor: pointer;
+}
+
+.nav-btn:hover {
+    background-color: var(--input-bg);
+}
+
+.nav-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.nav-btn.active {
+    color: var(--accent);
+    background-color: var(--accent-glow);
+    border-color: var(--accent);
+}
+
+.nav-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nav-count {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.nav-empty {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    list-style: none;
+}
+
+.btn-mini {
+    font: inherit;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    padding: 4px 6px;
+    cursor: pointer;
+}
+
+.btn-mini:hover {
+    color: var(--text-primary);
+    background-color: var(--input-bg);
+}
+
+.btn-mini.danger:hover {
+    color: var(--danger);
+    background-color: var(--danger-bg);
+}
+
+.btn-mini:focus-visible {
+    outline: 2px solid var(--accent);
+}
+
+.inline-form {
+    display: flex;
+    gap: 8px;
+}
+
+.inline-form input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+}
+
+/* Formulario de tarea */
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 0 14px;
+}
+
+fieldset.tag-picker {
+    border: 0;
+    min-width: 0;
+}
+
+fieldset.tag-picker legend {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.chip-check {
+    cursor: pointer;
+}
+
+.chip-check input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+}
+
+.chip-check span,
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: var(--accent);
+    background-color: var(--accent-glow);
+    border: 1px solid transparent;
+}
+
+.chip-check span {
+    color: var(--text-secondary);
+    background-color: var(--input-bg);
+    border-color: var(--border-color);
+}
+
+.chip-check input:checked + span {
+    color: var(--accent);
+    background-color: var(--accent-glow);
+    border-color: var(--accent);
+}
+
+.chip-check input:focus-visible + span {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.chip-x {
+    font: inherit;
+    line-height: 1;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    padding: 0 2px;
+    cursor: pointer;
+}
+
+.chip-x:hover {
+    color: var(--danger);
+}
+
+.chip-x:focus-visible {
+    outline: 2px solid var(--accent);
+}
+
+/* Filtros */
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0 14px;
+    margin-bottom: 14px;
+}
+
+.filters .field {
+    margin-bottom: 0;
+    min-width: 150px;
+}
+
+.filter-summary {
+    flex: 1 1 100%;
+    margin-top: 10px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.filter-summary:empty {
+    display: none;
+}
+
+/* Tareas */
+.task-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.task {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 14px;
+    align-items: start;
+    padding: 14px 16px;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+.task.done {
+    opacity: 0.65;
+}
+
+.task.done .task-title {
+    text-decoration: line-through;
+}
+
+.task-check {
+    width: 20px;
+    height: 20px;
+    margin-top: 3px;
+    padding: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.task-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.task-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.task-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.task-desc {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+.badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+
+.prio-alta {
+    color: var(--danger);
+    background-color: var(--danger-bg);
+}
+
+.prio-media {
+    color: var(--warn);
+    background-color: var(--warn-bg);
+}
+
+.prio-baja {
+    color: var(--success);
+    background-color: var(--success-bg);
+}
+
+.due {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.due.overdue {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.task-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.task-controls select,
+.add-tag {
+    font-size: 0.85rem;
+    padding: 5px 8px;
+}
+
+.add-tag {
+    border-radius: 999px;
+    color: var(--text-secondary);
+}
+
+.task-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.task-actions .btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+}
+
+@media (max-width: 560px) {
+    .task {
+        grid-template-columns: auto 1fr;
+    }
+
+    .task-actions {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        justify-content: flex-end;
+    }
+}
+
+/* Diálogo de edición */
+dialog {
+    width: min(520px, calc(100% - 32px));
+    margin: auto;
+    padding: 24px;
+    color: var(--text-primary);
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+}
+
+dialog::backdrop {
+    background-color: rgba(2, 6, 23, 0.7);
+}
+
+dialog h2 {
+    margin-bottom: 18px;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+#edit-error {
+    margin: 0 0 10px;
 }
