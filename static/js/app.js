@@ -1,4 +1,6 @@
-// Cliente del Gestor de Tareas: consume la API REST de usuarios (GET/POST/DELETE /users).
+// Página principal del Gestor de Tareas: consume la API REST de usuarios (GET/POST/DELETE /users)
+// y enlaza a la página de tareas de cada usuario (tasks.html?user={id}).
+// Las utilidades compartidas (request, formatDate) están en common.js.
 // El servidor Go sirve esta carpeta (static/) y la API en el mismo origen (puerto 8080),
 // por eso alcanza con rutas relativas y no hace falta configurar CORS.
 const API_URL = "/users";
@@ -12,30 +14,6 @@ const messageBox = document.getElementById("message");
 
 // --- Utilidades ---------------------------------------------------------
 
-// Hace el fetch y devuelve el JSON (o null si la respuesta es 204).
-// Si el servidor responde con error, lanza un Error con el mensaje de la API ({"error": "..."}).
-async function request(url, options) {
-    let response;
-    try {
-        response = await fetch(url, options);
-    } catch {
-        throw new Error("No se pudo conectar con el servidor. ¿Está corriendo la API?");
-    }
-
-    if (!response.ok) {
-        let message = `Error ${response.status}`;
-        try {
-            const body = await response.json();
-            if (body.error) message = body.error;
-        } catch {
-            // la respuesta no era JSON: dejamos el mensaje genérico
-        }
-        throw new Error(message);
-    }
-
-    return response.status === 204 ? null : response.json();
-}
-
 function showMessage(text, type) {
     messageBox.textContent = text;
     messageBox.className = `message ${type}`;
@@ -45,20 +23,6 @@ function showMessage(text, type) {
 function clearMessage() {
     messageBox.hidden = true;
     messageBox.textContent = "";
-}
-
-// created_at puede llegar como string ISO o, si la columna admite NULL, como el objeto
-// que serializa sql.NullTime de Go: {"Time": "...", "Valid": true}. Se aceptan ambos.
-function formatDate(value) {
-    const isoString = value && typeof value === "object" ? (value.Valid ? value.Time : null) : value;
-    if (!isoString) return "";
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("es-AR", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-    });
 }
 
 // --- Render -------------------------------------------------------------
@@ -89,6 +53,15 @@ function createUserItem(user) {
 
     info.append(name, meta);
 
+    const tasksLink = document.createElement("a");
+    tasksLink.className = "btn btn-secondary";
+    tasksLink.href = `/tasks.html?user=${encodeURIComponent(user.id)}`;
+    tasksLink.textContent = "Ver tareas";
+    tasksLink.setAttribute("aria-label", `Ver las tareas de ${user.display_name}`);
+
+    const actions = document.createElement("div");
+    actions.className = "user-actions";
+
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
     deleteBtn.className = "btn btn-danger";
@@ -96,7 +69,8 @@ function createUserItem(user) {
     deleteBtn.textContent = "Eliminar";
     deleteBtn.setAttribute("aria-label", `Eliminar a ${user.display_name}`);
 
-    li.append(info, deleteBtn);
+    actions.append(tasksLink, deleteBtn);
+    li.append(info, actions);
     return li;
 }
 
