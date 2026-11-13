@@ -32,7 +32,7 @@ WHERE tt.task_id = sqlc.arg(task_id)
 ORDER BY tg.tag_name;
 
 -- name: ListTasksByTag :many
-SELECT t.id, t.user_id, t.folder_id, t.group_id, t.assigned_to, t.title, t.task_description,
+SELECT t.id, t.user_id, t.folder_id, t.title, t.task_description,
        t.due_date, t.task_status, t.task_priority, t.attachment_path,
        t.created_at, t.updated_at, t.completed_at
 FROM tasks t
