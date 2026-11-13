@@ -1,5 +1,5 @@
 // Package handlers expone la API REST: un archivo por entidad (users, folders, tags,
-// groups, tasks) más utilidades compartidas (helpers.go y errors.go).
+// tasks) más utilidades compartidas (helpers.go y errors.go).
 package handlers
 
 import (
@@ -14,6 +14,5 @@ func Register(conn *sql.DB, queries *db.Queries) {
 	registerUserRoutes(conn, queries)
 	registerFolderRoutes(queries)
 	registerTagRoutes(queries)
-	registerGroupRoutes(queries)
 	registerTaskRoutes(queries)
 }

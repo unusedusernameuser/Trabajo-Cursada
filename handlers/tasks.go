@@ -9,7 +9,7 @@ import (
 )
 
 // taskHandler agrupa los handlers de tasks y tasks_tags.
-// Todas las rutas cuelgan de /users/{user_id}: es quien consulta o modifica la tarea.
+// Todas las rutas cuelgan de /users/{user_id}: cada usuario solo ve y modifica sus propias tareas.
 type taskHandler struct {
 	queries *db.Queries
 }
@@ -22,8 +22,6 @@ var (
 // taskInput es el cuerpo de POST /users/{user_id}/tasks.
 type taskInput struct {
 	FolderID        *int32     `json:"folder_id"`
-	GroupID         *int32     `json:"group_id"`
-	AssignedTo      *int32     `json:"assigned_to"`
 	Title           string     `json:"title"`
 	TaskDescription *string    `json:"task_description"`
 	DueDate         *time.Time `json:"due_date"` // RFC 3339, ej. "2026-12-01T18:00:00Z"
@@ -43,8 +41,6 @@ type taskResponse struct {
 	ID              int32      `json:"id"`
 	UserID          int32      `json:"user_id"`
 	FolderID        *int32     `json:"folder_id"`
-	GroupID         *int32     `json:"group_id"`
-	AssignedTo      *int32     `json:"assigned_to"`
 	Title           string     `json:"title"`
 	TaskDescription *string    `json:"task_description"`
 	DueDate         *time.Time `json:"due_date"`
@@ -61,8 +57,6 @@ func newTaskResponse(t db.Task) taskResponse {
 		ID:              t.ID,
 		UserID:          t.UserID,
 		FolderID:        nullInt32(t.FolderID),
-		GroupID:         nullInt32(t.GroupID),
-		AssignedTo:      nullInt32(t.AssignedTo),
 		Title:           t.Title,
 		TaskDescription: nullString(t.TaskDescription),
 		DueDate:         nullTime(t.DueDate),
@@ -85,14 +79,11 @@ func registerTaskRoutes(queries *db.Queries) {
 	http.HandleFunc("GET /users/{user_id}/tasks/{id}", h.get)
 	http.HandleFunc("PUT /users/{user_id}/tasks/{id}", h.update)
 	http.HandleFunc("DELETE /users/{user_id}/tasks/{id}", h.delete)
-	http.HandleFunc("GET /users/{user_id}/assigned-tasks", h.listAssigned)
 	http.HandleFunc("GET /users/{user_id}/folders/{folder_id}/tasks", h.listByFolder)
-	http.HandleFunc("GET /users/{user_id}/groups/{group_id}/tasks", h.listByGroup)
 
 	// Cambios parciales
 	http.HandleFunc("PUT /users/{user_id}/tasks/{id}/status", h.updateStatus)
 	http.HandleFunc("PUT /users/{user_id}/tasks/{id}/folder", h.moveToFolder)
-	http.HandleFunc("PUT /users/{user_id}/tasks/{id}/assignee", h.assign)
 	http.HandleFunc("PUT /users/{user_id}/tasks/{id}/attachment", h.updateAttachment)
 
 	// Tags de una tarea
@@ -145,8 +136,6 @@ func (h *taskHandler) create(w http.ResponseWriter, r *http.Request) {
 	task, err := h.queries.CreateTask(r.Context(), db.CreateTaskParams{
 		UserID:          userID,
 		FolderID:        toNullInt32(in.FolderID),
-		GroupID:         toNullInt32(in.GroupID),
-		AssignedTo:      toNullInt32(in.AssignedTo),
 		Title:           in.Title,
 		TaskDescription: toNullString(in.TaskDescription),
 		DueDate:         toNullTime(in.DueDate),
@@ -154,11 +143,9 @@ func (h *taskHandler) create(w http.ResponseWriter, r *http.Request) {
 		AttachmentPath:  toNullString(in.AttachmentPath),
 	})
 	if err != nil {
-		// Si la carpeta no es del usuario, no es miembro del grupo o el asignado no es
-		// válido, la query no inserta nada y no devuelve filas.
+		// Si la carpeta no es del usuario, la query no inserta nada y no devuelve filas.
 		if isNoRows(err) {
-			writeError(w, http.StatusBadRequest,
-				"la carpeta debe ser del usuario, el usuario debe ser miembro del grupo y el asignado debe ser el propio usuario o miembro del grupo")
+			writeError(w, http.StatusBadRequest, "la carpeta debe ser del usuario")
 			return
 		}
 		writeDBError(w, err)
@@ -222,21 +209,6 @@ func (h *taskHandler) listOverdue(w http.ResponseWriter, r *http.Request) {
 	writeTasks(w, tasks)
 }
 
-// GET /users/{user_id}/assigned-tasks
-func (h *taskHandler) listAssigned(w http.ResponseWriter, r *http.Request) {
-	userID, ok := readPathID(w, r, "user_id")
-	if !ok {
-		return
-	}
-
-	tasks, err := h.queries.ListTasksAssignedToUser(r.Context(), toNullInt32(&userID))
-	if err != nil {
-		writeDBError(w, err)
-		return
-	}
-	writeTasks(w, tasks)
-}
-
 // GET /users/{user_id}/folders/{folder_id}/tasks
 func (h *taskHandler) listByFolder(w http.ResponseWriter, r *http.Request) {
 	userID, ok := readPathID(w, r, "user_id")
@@ -259,31 +231,7 @@ func (h *taskHandler) listByFolder(w http.ResponseWriter, r *http.Request) {
 	writeTasks(w, tasks)
 }
 
-// GET /users/{user_id}/groups/{group_id}/tasks
-// Solo devuelve tareas si el usuario es miembro del grupo.
-func (h *taskHandler) listByGroup(w http.ResponseWriter, r *http.Request) {
-	userID, ok := readPathID(w, r, "user_id")
-	if !ok {
-		return
-	}
-	groupID, ok := readPathID(w, r, "group_id")
-	if !ok {
-		return
-	}
-
-	tasks, err := h.queries.ListTasksByGroup(r.Context(), db.ListTasksByGroupParams{
-		GroupID: toNullInt32(&groupID),
-		UserID:  userID,
-	})
-	if err != nil {
-		writeDBError(w, err)
-		return
-	}
-	writeTasks(w, tasks)
-}
-
 // GET /users/{user_id}/tasks/{id}
-// Visible para el creador, el asignado o cualquier miembro del grupo de la tarea.
 func (h *taskHandler) get(w http.ResponseWriter, r *http.Request) {
 	userID, ok := readPathID(w, r, "user_id")
 	if !ok {
@@ -304,7 +252,7 @@ func (h *taskHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 // PUT /users/{user_id}/tasks/{id}
-// Solo el creador. Modifica title, task_description, due_date y task_priority.
+// Modifica title, task_description, due_date y task_priority.
 func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 	userID, ok := readPathID(w, r, "user_id")
 	if !ok {
@@ -335,7 +283,7 @@ func (h *taskHandler) update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, newTaskResponse(task))
 }
 
-// DELETE /users/{user_id}/tasks/{id}   (solo el creador)
+// DELETE /users/{user_id}/tasks/{id}
 func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
 	userID, ok := readPathID(w, r, "user_id")
 	if !ok {
@@ -355,7 +303,6 @@ func (h *taskHandler) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // PUT /users/{user_id}/tasks/{id}/status   {"task_status": "completada"}
-// Puede cambiarlo el creador, el asignado o cualquier miembro del grupo.
 // completed_at se completa al pasar a "completada" y vuelve a null con cualquier otro estado.
 func (h *taskHandler) updateStatus(w http.ResponseWriter, r *http.Request) {
 	userID, ok := readPathID(w, r, "user_id")
@@ -391,7 +338,7 @@ func (h *taskHandler) updateStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // PUT /users/{user_id}/tasks/{id}/folder   {"folder_id": 3}  (null la saca de la carpeta)
-// Solo el creador, y la carpeta destino debe ser suya.
+// La carpeta destino debe ser del usuario.
 func (h *taskHandler) moveToFolder(w http.ResponseWriter, r *http.Request) {
 	userID, ok := readPathID(w, r, "user_id")
 	if !ok {
@@ -415,37 +362,6 @@ func (h *taskHandler) moveToFolder(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		writeDBErrorMsg(w, err, "tarea no encontrada o la carpeta no es del usuario", "")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, newTaskResponse(task))
-}
-
-// PUT /users/{user_id}/tasks/{id}/assignee   {"assigned_to": 3}  (null la desasigna)
-// Solo el creador. El asignado debe ser el propio creador o miembro del grupo de la tarea.
-func (h *taskHandler) assign(w http.ResponseWriter, r *http.Request) {
-	userID, ok := readPathID(w, r, "user_id")
-	if !ok {
-		return
-	}
-	id, ok := readID(w, r)
-	if !ok {
-		return
-	}
-	var in struct {
-		AssignedTo *int32 `json:"assigned_to"`
-	}
-	if !decodeBody(w, r, &in) {
-		return
-	}
-
-	task, err := h.queries.AssignTask(r.Context(), db.AssignTaskParams{
-		ID:         id,
-		UserID:     userID,
-		AssignedTo: toNullInt32(in.AssignedTo),
-	})
-	if err != nil {
-		writeDBErrorMsg(w, err, "tarea no encontrada o el asignado no es válido", "")
 		return
 	}
 
