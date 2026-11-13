@@ -74,7 +74,6 @@ func TestCreateTaskValidations(t *testing.T) {
 	user := createTestUser(t, q, "tsk_val")
 	other := createTestUser(t, q, "tsk_val2")
 	foreignFolder := createTestFolder(t, q, other.ID, "Ajena")
-	foreignGroup := createTestGroup(t, q, other.ID, "Grupo ajeno")
 
 	// Carpeta de otro usuario: no inserta.
 	_, err := q.CreateTask(ctx, CreateTaskParams{
@@ -84,74 +83,6 @@ func TestCreateTaskValidations(t *testing.T) {
 	})
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Errorf("carpeta ajena: se esperaba sql.ErrNoRows, se obtuvo: %v", err)
-	}
-
-	// Grupo del que no es miembro: no inserta.
-	_, err = q.CreateTask(ctx, CreateTaskParams{
-		UserID:  user.ID,
-		GroupID: sql.NullInt32{Int32: foreignGroup.ID, Valid: true},
-		Title:   "Grupo ajeno",
-	})
-	if !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("grupo ajeno: se esperaba sql.ErrNoRows, se obtuvo: %v", err)
-	}
-
-	// Asignar a un usuario que no es el propio ni miembro del grupo: no inserta.
-	_, err = q.CreateTask(ctx, CreateTaskParams{
-		UserID:     user.ID,
-		AssignedTo: sql.NullInt32{Int32: other.ID, Valid: true},
-		Title:      "Asignado a un extraño",
-	})
-	if !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("asignado inválido: se esperaba sql.ErrNoRows, se obtuvo: %v", err)
-	}
-
-	// Asignarse a uno mismo sí es válido.
-	self, err := q.CreateTask(ctx, CreateTaskParams{
-		UserID:     user.ID,
-		AssignedTo: sql.NullInt32{Int32: user.ID, Valid: true},
-		Title:      "Auto-asignada",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask (auto-asignada) falló: %v", err)
-	}
-	if !self.AssignedTo.Valid || self.AssignedTo.Int32 != user.ID {
-		t.Errorf("assigned_to = %+v, quería %d", self.AssignedTo, user.ID)
-	}
-}
-
-func TestCreateGroupTaskAssignedToMember(t *testing.T) {
-	conn := getTestDB(t)
-	q := New(conn)
-	ctx := context.Background()
-
-	owner := createTestUser(t, q, "tsk_grp")
-	member := createTestUser(t, q, "tsk_grp2")
-	group := createTestGroup(t, q, owner.ID, "Grupo tareas")
-	if _, err := q.AddGroupMember(ctx, AddGroupMemberParams{GroupID: group.ID, UserID: member.ID}); err != nil {
-		t.Fatalf("AddGroupMember falló: %v", err)
-	}
-
-	task, err := q.CreateTask(ctx, CreateTaskParams{
-		UserID:     owner.ID,
-		GroupID:    sql.NullInt32{Int32: group.ID, Valid: true},
-		AssignedTo: sql.NullInt32{Int32: member.ID, Valid: true},
-		Title:      "Tarea grupal",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask falló: %v", err)
-	}
-
-	// El miembro (asignado) puede verla.
-	if _, err := q.GetTaskByID(ctx, GetTaskByIDParams{ID: task.ID, UserID: member.ID}); err != nil {
-		t.Errorf("el asignado debería poder ver la tarea: %v", err)
-	}
-
-	// Un tercero no.
-	stranger := createTestUser(t, q, "tsk_grp3")
-	_, err = q.GetTaskByID(ctx, GetTaskByIDParams{ID: task.ID, UserID: stranger.ID})
-	if !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("se esperaba sql.ErrNoRows para un tercero, se obtuvo: %v", err)
 	}
 }
 
@@ -262,75 +193,6 @@ func TestListTasksByFolder(t *testing.T) {
 	}
 }
 
-func TestListTasksByGroup(t *testing.T) {
-	conn := getTestDB(t)
-	q := New(conn)
-	ctx := context.Background()
-
-	owner := createTestUser(t, q, "tsk_lg")
-	stranger := createTestUser(t, q, "tsk_lg2")
-	group := createTestGroup(t, q, owner.ID, "Grupo")
-
-	groupTask, err := q.CreateTask(ctx, CreateTaskParams{
-		UserID:  owner.ID,
-		GroupID: sql.NullInt32{Int32: group.ID, Valid: true},
-		Title:   "Grupal",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask falló: %v", err)
-	}
-	createTestTask(t, q, owner.ID, "Personal")
-
-	tasks, err := q.ListTasksByGroup(ctx, ListTasksByGroupParams{
-		GroupID: sql.NullInt32{Int32: group.ID, Valid: true},
-		UserID:  owner.ID,
-	})
-	if err != nil {
-		t.Fatalf("ListTasksByGroup falló: %v", err)
-	}
-	if len(tasks) != 1 || tasks[0].ID != groupTask.ID {
-		t.Errorf("tasks = %+v, se esperaba solo la tarea %d", tasks, groupTask.ID)
-	}
-
-	// Quien no es miembro no ve nada.
-	tasks, err = q.ListTasksByGroup(ctx, ListTasksByGroupParams{
-		GroupID: sql.NullInt32{Int32: group.ID, Valid: true},
-		UserID:  stranger.ID,
-	})
-	if err != nil {
-		t.Fatalf("ListTasksByGroup (no miembro) falló: %v", err)
-	}
-	if len(tasks) != 0 {
-		t.Errorf("len(tasks) = %d, quería 0 para un no miembro", len(tasks))
-	}
-}
-
-func TestListTasksAssignedToUser(t *testing.T) {
-	conn := getTestDB(t)
-	q := New(conn)
-	ctx := context.Background()
-
-	user := createTestUser(t, q, "tsk_as")
-
-	assigned, err := q.CreateTask(ctx, CreateTaskParams{
-		UserID:     user.ID,
-		AssignedTo: sql.NullInt32{Int32: user.ID, Valid: true},
-		Title:      "Asignada",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask falló: %v", err)
-	}
-	createTestTask(t, q, user.ID, "No asignada")
-
-	tasks, err := q.ListTasksAssignedToUser(ctx, sql.NullInt32{Int32: user.ID, Valid: true})
-	if err != nil {
-		t.Fatalf("ListTasksAssignedToUser falló: %v", err)
-	}
-	if len(tasks) != 1 || tasks[0].ID != assigned.ID {
-		t.Errorf("tasks = %+v, se esperaba solo la tarea %d", tasks, assigned.ID)
-	}
-}
-
 func TestListOverdueTasksByUser(t *testing.T) {
 	conn := getTestDB(t)
 	q := New(conn)
@@ -399,7 +261,7 @@ func TestUpdateTask(t *testing.T) {
 		t.Errorf("due_date debería tener valor")
 	}
 
-	// Solo el creador puede modificarla.
+	// Solo el dueño puede modificarla.
 	other := createTestUser(t, q, "tsk_upd2")
 	_, err = q.UpdateTask(ctx, UpdateTaskParams{
 		ID: task.ID, UserID: other.ID, Title: "Hackeada", TaskPriority: "alta",
@@ -415,27 +277,15 @@ func TestUpdateTaskStatus(t *testing.T) {
 	ctx := context.Background()
 
 	owner := createTestUser(t, q, "tsk_st")
-	member := createTestUser(t, q, "tsk_st2")
-	stranger := createTestUser(t, q, "tsk_st3")
-	group := createTestGroup(t, q, owner.ID, "Grupo estado")
-	if _, err := q.AddGroupMember(ctx, AddGroupMemberParams{GroupID: group.ID, UserID: member.ID}); err != nil {
-		t.Fatalf("AddGroupMember falló: %v", err)
-	}
-	task, err := q.CreateTask(ctx, CreateTaskParams{
-		UserID:  owner.ID,
-		GroupID: sql.NullInt32{Int32: group.ID, Valid: true},
-		Title:   "Tarea grupal",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask falló: %v", err)
-	}
+	stranger := createTestUser(t, q, "tsk_st2")
+	task := createTestTask(t, q, owner.ID, "Estado")
 
-	// Un miembro del grupo puede completarla: completed_at se completa.
+	// Al completarla, completed_at se completa.
 	completed, err := q.UpdateTaskStatus(ctx, UpdateTaskStatusParams{
-		ID: task.ID, UserID: member.ID, TaskStatus: "completada",
+		ID: task.ID, UserID: owner.ID, TaskStatus: "completada",
 	})
 	if err != nil {
-		t.Fatalf("UpdateTaskStatus (miembro) falló: %v", err)
+		t.Fatalf("UpdateTaskStatus falló: %v", err)
 	}
 	if completed.TaskStatus != "completada" {
 		t.Errorf("task_status = %q, quería %q", completed.TaskStatus, "completada")
@@ -449,18 +299,18 @@ func TestUpdateTaskStatus(t *testing.T) {
 		ID: task.ID, UserID: owner.ID, TaskStatus: "en_progreso",
 	})
 	if err != nil {
-		t.Fatalf("UpdateTaskStatus (creador) falló: %v", err)
+		t.Fatalf("UpdateTaskStatus (reabrir) falló: %v", err)
 	}
 	if reopened.CompletedAt.Valid {
 		t.Errorf("completed_at debería ser NULL al reabrir la tarea")
 	}
 
-	// Un tercero no puede cambiarlo.
+	// Otro usuario no puede cambiarlo.
 	_, err = q.UpdateTaskStatus(ctx, UpdateTaskStatusParams{
 		ID: task.ID, UserID: stranger.ID, TaskStatus: "completada",
 	})
 	if !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("se esperaba sql.ErrNoRows para un tercero, se obtuvo: %v", err)
+		t.Errorf("se esperaba sql.ErrNoRows para otro usuario, se obtuvo: %v", err)
 	}
 }
 
@@ -504,70 +354,6 @@ func TestMoveTaskToFolder(t *testing.T) {
 	}
 	if removed.FolderID.Valid {
 		t.Errorf("folder_id debería ser NULL, fue %+v", removed.FolderID)
-	}
-}
-
-func TestAssignTask(t *testing.T) {
-	conn := getTestDB(t)
-	q := New(conn)
-	ctx := context.Background()
-
-	owner := createTestUser(t, q, "tsk_asg")
-	member := createTestUser(t, q, "tsk_asg2")
-	stranger := createTestUser(t, q, "tsk_asg3")
-	group := createTestGroup(t, q, owner.ID, "Grupo asignar")
-	if _, err := q.AddGroupMember(ctx, AddGroupMemberParams{GroupID: group.ID, UserID: member.ID}); err != nil {
-		t.Fatalf("AddGroupMember falló: %v", err)
-	}
-	task, err := q.CreateTask(ctx, CreateTaskParams{
-		UserID:  owner.ID,
-		GroupID: sql.NullInt32{Int32: group.ID, Valid: true},
-		Title:   "Asignar",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask falló: %v", err)
-	}
-
-	// Asignar a un miembro del grupo.
-	assigned, err := q.AssignTask(ctx, AssignTaskParams{
-		ID:         task.ID,
-		UserID:     owner.ID,
-		AssignedTo: sql.NullInt32{Int32: member.ID, Valid: true},
-	})
-	if err != nil {
-		t.Fatalf("AssignTask falló: %v", err)
-	}
-	if !assigned.AssignedTo.Valid || assigned.AssignedTo.Int32 != member.ID {
-		t.Errorf("assigned_to = %+v, quería %d", assigned.AssignedTo, member.ID)
-	}
-
-	// Asignar a alguien que no es miembro: no actualiza.
-	_, err = q.AssignTask(ctx, AssignTaskParams{
-		ID:         task.ID,
-		UserID:     owner.ID,
-		AssignedTo: sql.NullInt32{Int32: stranger.ID, Valid: true},
-	})
-	if !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("asignado inválido: se esperaba sql.ErrNoRows, se obtuvo: %v", err)
-	}
-
-	// Solo el creador puede asignar.
-	_, err = q.AssignTask(ctx, AssignTaskParams{
-		ID:         task.ID,
-		UserID:     member.ID,
-		AssignedTo: sql.NullInt32{Int32: member.ID, Valid: true},
-	})
-	if !errors.Is(err, sql.ErrNoRows) {
-		t.Errorf("no-creador: se esperaba sql.ErrNoRows, se obtuvo: %v", err)
-	}
-
-	// Desasignar (NULL).
-	unassigned, err := q.AssignTask(ctx, AssignTaskParams{ID: task.ID, UserID: owner.ID})
-	if err != nil {
-		t.Fatalf("AssignTask (NULL) falló: %v", err)
-	}
-	if unassigned.AssignedTo.Valid {
-		t.Errorf("assigned_to debería ser NULL, fue %+v", unassigned.AssignedTo)
 	}
 }
 

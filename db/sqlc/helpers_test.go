@@ -2,14 +2,13 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"math/rand"
 	"testing"
 )
 
 // Helpers compartidos por los tests de db/sqlc. Todo lo que cuelga de un usuario
-// (carpetas, tags, grupos, tareas) se elimina en cascada al borrar al usuario,
+// (carpetas, tags, tareas) se elimina en cascada al borrar al usuario,
 // así que alcanza con registrar el DeleteUser en t.Cleanup.
 
 func uniqueSuffix(prefix string) string {
@@ -58,21 +57,7 @@ func createTestTag(t *testing.T, q *Queries, userID int32, name string) Tag {
 	return tag
 }
 
-func createTestGroup(t *testing.T, q *Queries, ownerID int32, name string) CreateGroupRow {
-	t.Helper()
-
-	g, err := q.CreateGroup(context.Background(), CreateGroupParams{
-		OwnerID:          ownerID,
-		GroupName:        name,
-		GroupDescription: sql.NullString{String: "descripción de prueba", Valid: true},
-	})
-	if err != nil {
-		t.Fatalf("CreateGroup falló: %v", err)
-	}
-	return g
-}
-
-// createTestTask crea una tarea simple (sin carpeta, grupo, asignado ni fecha).
+// createTestTask crea una tarea simple (sin carpeta ni fecha).
 func createTestTask(t *testing.T, q *Queries, userID int32, title string) Task {
 	t.Helper()
 
