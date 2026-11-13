@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tareas · Gestor de Tareas</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/common.js" defer></script>
+    <script src="/js/tasks.js" defer></script>
+</head>
+<body>
+    <div class="page page-wide">
+        <header class="page-header">
+            <a class="back-link" href="/">&larr; Volver a usuarios</a>
+            <h1 id="user-title">Tareas</h1>
+            <p id="user-subtitle">Cargando…</p>
+        </header>
+
+        <p id="message" class="message" role="status" aria-live="polite" hidden></p>
+
+        <section id="fatal" class="panel" hidden>
+            <h2 id="fatal-title">No se pudo abrir esta página</h2>
+            <p id="fatal-text" class="empty"></p>
+            <a class="btn btn-secondary" href="/">Ir a la lista de usuarios</a>
+        </section>
+
+        <div id="workspace" class="workspace" hidden>
+            <aside class="sidebar">
+                <section class="panel" aria-labelledby="folders-title">
+                    <h2 id="folders-title">Carpetas</h2>
+                    <ul id="folder-list" class="nav-list"></ul>
+                    <form id="folder-form" class="inline-form">
+                        <label class="visually-hidden" for="folder-name">Nombre de la carpeta</label>
+                        <input id="folder-name" type="text" maxlength="63" placeholder="Nueva carpeta" autocomplete="off" required>
+                        <button class="btn btn-secondary btn-sm" type="submit">Crear</button>
+                    </form>
+                </section>
+
+                <section class="panel" aria-labelledby="tags-title">
+                    <h2 id="tags-title">Tags</h2>
+                    <ul id="tag-list" class="nav-list"></ul>
+                    <form id="tag-form" class="inline-form">
+                        <label class="visually-hidden" for="tag-name">Nombre del tag</label>
+                        <input id="tag-name" type="text" maxlength="63" placeholder="Nuevo tag" autocomplete="off" required>
+                        <button class="btn btn-secondary btn-sm" type="submit">Crear</button>
+                    </form>
+                </section>
+            </aside>
+
+            <main class="content">
+                <section class="panel" aria-labelledby="new-task-title">
+                    <h2 id="new-task-title">Nueva tarea</h2>
+                    <form id="task-form">
+                        <div class="field">
+                            <label for="task-title">Título</label>
+                            <input id="task-title" type="text" maxlength="127" autocomplete="off" required>
+                        </div>
+                        <div class="field">
+                            <label for="task-description">Descripción (opcional)</label>
+                            <textarea id="task-description" rows="2"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="field">
+                                <label for="task-due">Fecha límite</label>
+                                <input id="task-due" type="datetime-local">
+                            </div>
+                            <div class="field">
+                                <label for="task-priority">Prioridad</label>
+                                <select id="task-priority">
+                                    <option value="baja">Baja</option>
+                                    <option value="media" selected>Media</option>
+                                    <option value="alta">Alta</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="task-folder">Carpeta</label>
+                                <select id="task-folder"></select>
+                            </div>
+                        </div>
+                        <fieldset class="field tag-picker">
+                            <legend>Tags</legend>
+                            <div id="task-tags" class="chip-row"></div>
+                        </fieldset>
+                        <button id="task-submit" class="btn btn-primary btn-auto" type="submit">Crear tarea</button>
+                    </form>
+                </section>
+
+                <section class="panel" aria-labelledby="tasks-title">
+                    <div class="list-header">
+                        <h2 id="tasks-title">Tareas</h2>
+                        <span id="task-count" class="count">0</span>
+                    </div>
+
+                    <div class="filters">
+                        <div class="field">
+                            <label for="filter-status">Estado</label>
+                            <select id="filter-status">
+                                <option value="">Todos</option>
+                                <option value="pendiente">Pendiente</option>
+                                <option value="en_progreso">En progreso</option>
+                                <option value="completada">Completada</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="filter-priority">Prioridad</label>
+                            <select id="filter-priority">
+                                <option value="">Todas</option>
+                                <option value="alta">Alta</option>
+                                <option value="media">Media</option>
+                                <option value="baja">Baja</option>
+                            </select>
+                        </div>
+                        <p id="filter-summary" class="filter-summary"></p>
+                    </div>
+
+                    <ul id="task-list" class="task-list"></ul>
+                    <p id="empty-state" class="empty" hidden></p>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <dialog id="edit-dialog" aria-labelledby="edit-title">
+        <form id="edit-form">
+            <h2 id="edit-title">Editar tarea</h2>
+            <div class="field">
+                <label for="edit-task-title">Título</label>
+                <input id="edit-task-title" type="text" maxlength="127" required>
+            </div>
+            <div class="field">
+                <label for="edit-task-description">Descripción</label>
+                <textarea id="edit-task-description" rows="3"></textarea>
+            </div>
+            <div class="form-row">
+                <div class="field">
+                    <label for="edit-task-due">Fecha límite</label>
+                    <input id="edit-task-due" type="datetime-local">
+                </div>
+                <div class="field">
+                    <label for="edit-task-priority">Prioridad</label>
+                    <select id="edit-task-priority">
+                        <option value="baja">Baja</option>
+                        <option value="media">Media</option>
+                        <option value="alta">Alta</option>
+                    </select>
+                </div>
+            </div>
+            <p id="edit-error" class="message error" hidden></p>
+            <div class="dialog-actions">
+                <button id="edit-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+                <button class="btn btn-primary btn-auto" type="submit">Guardar</button>
+            </div>
+        </form>
+    </dialog>
+</body>
+</html>
