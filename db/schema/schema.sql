@@ -34,36 +34,12 @@ CREATE TABLE tags (
     UNIQUE (user_id, tag_name)
 );
 
-CREATE TABLE groups (
-    id SERIAL PRIMARY KEY,
-    owner_id INTEGER NOT NULL
-        REFERENCES users(id) ON DELETE CASCADE,
-    group_name VARCHAR(63) NOT NULL
-        CHECK (length(trim(group_name)) > 0),
-    group_description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE groups_members (
-    group_id INTEGER NOT NULL
-        REFERENCES groups(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL
-        REFERENCES users(id) ON DELETE CASCADE,
-    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (group_id, user_id)
-);
-
 CREATE TABLE tasks (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL
         REFERENCES users(id) ON DELETE CASCADE,
     folder_id INTEGER
         REFERENCES folders(id) ON DELETE SET NULL,
-    group_id INTEGER
-        REFERENCES groups(id) ON DELETE CASCADE,
-    assigned_to INTEGER
-        REFERENCES users(id) on DELETE set NULL,
     title VARCHAR(127) NOT NULL
         CHECK (length(trim(title)) > 0),
     task_description TEXT,
