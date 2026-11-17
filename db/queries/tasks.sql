@@ -107,7 +107,7 @@ RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description
 UPDATE tasks
 SET task_status = $1,
     completed_at = CASE
-        WHEN $1 = 'completada' THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
+        WHEN $1::varchar = 'completada' THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
         ELSE NULL
     END,
     updated_at = CURRENT_TIMESTAMP
@@ -127,7 +127,7 @@ SET folder_id = $1,
     updated_at = CURRENT_TIMESTAMP
 WHERE tasks.id = $2
   AND tasks.user_id = $3
-  AND ($1 IS NULL
+  AND ($1::integer IS NULL
        OR EXISTS (SELECT 1 FROM folders f
                   WHERE f.id = $1 AND f.user_id = $3))
 RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description,
@@ -141,7 +141,7 @@ SET assigned_to = $1,
     updated_at = CURRENT_TIMESTAMP
 WHERE tasks.id = $2
   AND tasks.user_id = $3
-  AND ($1 IS NULL
+  AND ($1::integer IS NULL
        OR $1 = $3
        OR EXISTS (SELECT 1 FROM groups_members gm
                   WHERE gm.group_id = tasks.group_id AND gm.user_id = $1))
