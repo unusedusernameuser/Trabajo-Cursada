@@ -16,9 +16,9 @@ RETURNING id, user_id, folder_name, created_at, updated_at;
 
 -- name: UpdateFolderName :one
 UPDATE folders
-SET folder_name = sqlc.arg(folder_name),
+SET folder_name = $1,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id)
+WHERE id = $2 AND user_id = $3
 RETURNING id, user_id, folder_name, created_at, updated_at;
 
 -- name: DeleteFolder :exec

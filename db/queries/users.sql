@@ -6,17 +6,17 @@ WHERE id = $1;
 -- name: GetUserByHandle :one
 SELECT id, handle, display_name, email, created_at, updated_at
 FROM users
-WHERE handle = LOWER(sqlc.arg(handle));
+WHERE handle = LOWER($1);
 
 -- name: GetUserByEmail :one
 SELECT id, handle, display_name, email, created_at, updated_at
 FROM users
-WHERE email = LOWER(sqlc.arg(email));
+WHERE email = LOWER($1);
 
 -- name: GetUserAuthByEmail :one
 SELECT id, password_hash
 FROM users
-WHERE email = LOWER(sqlc.arg(email));
+WHERE email = LOWER($1);
 
 -- name: ListUsers :many
 SELECT id, handle, display_name, email, created_at, updated_at
