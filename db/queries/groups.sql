@@ -19,7 +19,7 @@ ORDER BY g.group_name;
 -- name: CreateGroup :one
 WITH new_group AS (
     INSERT INTO groups (owner_id, group_name, group_description)
-    VALUES (sqlc.arg(owner_id), sqlc.arg(group_name), sqlc.narg(group_description))
+    VALUES ($1, $2, $3)
     RETURNING id, owner_id, group_name, group_description, created_at, updated_at
 ),
 owner_member AS (
@@ -31,10 +31,10 @@ FROM new_group;
 
 -- name: UpdateGroup :one
 UPDATE groups
-SET group_name = sqlc.arg(group_name),
-    group_description = sqlc.narg(group_description),
+SET group_name = $1,
+    group_description = $2,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = sqlc.arg(id) AND owner_id = sqlc.arg(owner_id)
+WHERE id = $3 AND owner_id = $4
 RETURNING id, owner_id, group_name, group_description, created_at, updated_at;
 
 -- name: DeleteGroup :exec

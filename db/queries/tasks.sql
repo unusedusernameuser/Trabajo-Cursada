@@ -4,11 +4,11 @@ SELECT id, user_id, folder_id, group_id, assigned_to, title, task_description,
        due_date, task_status, task_priority, attachment_path,
        created_at, updated_at, completed_at
 FROM tasks
-WHERE tasks.id = sqlc.arg(id)
-  AND (tasks.user_id = sqlc.arg(user_id)
-       OR tasks.assigned_to = sqlc.arg(user_id)
+WHERE tasks.id = $1
+  AND (tasks.user_id = $2
+       OR tasks.assigned_to = $2
        OR EXISTS (SELECT 1 FROM groups_members gm
-                  WHERE gm.group_id = tasks.group_id AND gm.user_id = sqlc.arg(user_id)));
+                  WHERE gm.group_id = tasks.group_id AND gm.user_id = $2));
 
 -- name: ListTasksByUser :many
 SELECT id, user_id, folder_id, group_id, assigned_to, title, task_description,
@@ -26,7 +26,7 @@ SELECT id, user_id, folder_id, group_id, assigned_to, title, task_description,
        due_date, task_status, task_priority, attachment_path,
        created_at, updated_at, completed_at
 FROM tasks
-WHERE tasks.folder_id = sqlc.arg(folder_id) AND tasks.user_id = sqlc.arg(user_id)
+WHERE tasks.folder_id = $1 AND tasks.user_id = $2
 ORDER BY due_date NULLS LAST, id;
 
 -- name: ListTasksByGroup :many
@@ -35,9 +35,9 @@ SELECT id, user_id, folder_id, group_id, assigned_to, title, task_description,
        due_date, task_status, task_priority, attachment_path,
        created_at, updated_at, completed_at
 FROM tasks
-WHERE tasks.group_id = sqlc.arg(group_id)
+WHERE tasks.group_id = $1
   AND EXISTS (SELECT 1 FROM groups_members gm
-              WHERE gm.group_id = sqlc.arg(group_id) AND gm.user_id = sqlc.arg(user_id))
+              WHERE gm.group_id = $1 AND gm.user_id = $2)
 ORDER BY due_date NULLS LAST, id;
 
 -- name: ListTasksAssignedToUser :many
@@ -92,12 +92,12 @@ RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description
 
 -- name: UpdateTask :one
 UPDATE tasks
-SET title = sqlc.arg(title),
-    task_description = sqlc.narg(task_description),
-    due_date = sqlc.narg(due_date),
-    task_priority = sqlc.arg(task_priority),
+SET title = $1,
+    task_description = $2,
+    due_date = $3,
+    task_priority = $4,
     updated_at = CURRENT_TIMESTAMP
-WHERE tasks.id = sqlc.arg(id) AND tasks.user_id = sqlc.arg(user_id)
+WHERE tasks.id = $5 AND tasks.user_id = $6
 RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description,
           due_date, task_status, task_priority, attachment_path,
           created_at, updated_at, completed_at;
@@ -105,17 +105,17 @@ RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description
 -- name: UpdateTaskStatus :one
 -- Puede cambiarlo el creador, el asignado o cualquier miembro del grupo de la tarea.
 UPDATE tasks
-SET task_status = sqlc.arg(task_status)::varchar,
+SET task_status = $1,
     completed_at = CASE
-        WHEN sqlc.arg(task_status)::varchar = 'completada' THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
+        WHEN $1 = 'completada' THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
         ELSE NULL
     END,
     updated_at = CURRENT_TIMESTAMP
-WHERE tasks.id = sqlc.arg(id)
-  AND (tasks.user_id = sqlc.arg(user_id)
-       OR tasks.assigned_to = sqlc.arg(user_id)
+WHERE tasks.id = $2
+  AND (tasks.user_id = $3
+       OR tasks.assigned_to = $3
        OR EXISTS (SELECT 1 FROM groups_members gm
-                  WHERE gm.group_id = tasks.group_id AND gm.user_id = sqlc.arg(user_id)))
+                  WHERE gm.group_id = tasks.group_id AND gm.user_id = $3))
 RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description,
           due_date, task_status, task_priority, attachment_path,
           created_at, updated_at, completed_at;
@@ -123,13 +123,13 @@ RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description
 -- name: MoveTaskToFolder :one
 -- Solo el creador, y la carpeta destino (si no es NULL) debe ser suya.
 UPDATE tasks
-SET folder_id = sqlc.narg(folder_id),
+SET folder_id = $1,
     updated_at = CURRENT_TIMESTAMP
-WHERE tasks.id = sqlc.arg(id)
-  AND tasks.user_id = sqlc.arg(user_id)
-  AND (sqlc.narg(folder_id)::integer IS NULL
+WHERE tasks.id = $2
+  AND tasks.user_id = $3
+  AND ($1 IS NULL
        OR EXISTS (SELECT 1 FROM folders f
-                  WHERE f.id = sqlc.narg(folder_id) AND f.user_id = sqlc.arg(user_id)))
+                  WHERE f.id = $1 AND f.user_id = $3))
 RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description,
           due_date, task_status, task_priority, attachment_path,
           created_at, updated_at, completed_at;
@@ -137,23 +137,23 @@ RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description
 -- name: AssignTask :one
 -- Solo el creador. El asignado (si no es NULL) debe ser el propio creador o miembro del grupo de la tarea.
 UPDATE tasks
-SET assigned_to = sqlc.narg(assigned_to),
+SET assigned_to = $1,
     updated_at = CURRENT_TIMESTAMP
-WHERE tasks.id = sqlc.arg(id)
-  AND tasks.user_id = sqlc.arg(user_id)
-  AND (sqlc.narg(assigned_to)::integer IS NULL
-       OR sqlc.narg(assigned_to) = sqlc.arg(user_id)
+WHERE tasks.id = $2
+  AND tasks.user_id = $3
+  AND ($1 IS NULL
+       OR $1 = $3
        OR EXISTS (SELECT 1 FROM groups_members gm
-                  WHERE gm.group_id = tasks.group_id AND gm.user_id = sqlc.narg(assigned_to)))
+                  WHERE gm.group_id = tasks.group_id AND gm.user_id = $1))
 RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description,
           due_date, task_status, task_priority, attachment_path,
           created_at, updated_at, completed_at;
 
 -- name: UpdateTaskAttachment :one
 UPDATE tasks
-SET attachment_path = sqlc.narg(attachment_path),
+SET attachment_path = $1,
     updated_at = CURRENT_TIMESTAMP
-WHERE tasks.id = sqlc.arg(id) AND tasks.user_id = sqlc.arg(user_id)
+WHERE tasks.id = $2 AND tasks.user_id = $3
 RETURNING id, user_id, folder_id, group_id, assigned_to, title, task_description,
           due_date, task_status, task_priority, attachment_path,
           created_at, updated_at, completed_at;

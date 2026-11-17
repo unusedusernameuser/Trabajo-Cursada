@@ -16,9 +16,9 @@ RETURNING id, user_id, tag_name, created_at, updated_at;
 
 -- name: UpdateTagName :one
 UPDATE tags
-SET tag_name = sqlc.arg(tag_name),
+SET tag_name = $1,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id)
+WHERE id = $2 AND user_id = $3
 RETURNING id, user_id, tag_name, created_at, updated_at;
 
 -- name: DeleteTag :exec
