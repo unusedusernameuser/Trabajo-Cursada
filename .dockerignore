@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# .dockerignore
+#
+# El Dockerfile hace `COPY . .` y luego `go build`, así que lo que NO esté
+# excluido acá viaja al contexto de build y puede invalidar la caché.
+#
+# IMPORTANTE: NO excluir el código generado (db/sqlc/*.go y views/*_templ.go).
+# Está en .gitignore, pero el build dentro de Docker lo necesita: se genera
+# en el host con `make generate` (que `make docker-up` ya ejecuta antes).
+# ---------------------------------------------------------------------------
+
+# Control de versiones
+.git
+.gitignore
+
+# Secretos / variables de entorno (se inyectan por docker-compose, no por imagen)
+.env
+.env.*
+!.env.example
+
+# Archivos de Docker (no hace falta que estén dentro de la imagen)
+dockerfile
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+compose.yml
+
+# Herramientas de desarrollo y documentación
+Makefile
+README.md
+request.hurl
+sqlc.yaml
+
+# Fuentes que ya fueron compilados / generados en el host
+# (el binario usa db/sqlc/*.go y views/*_templ.go, no estos)
+db/queries/
+db/schema/
+views/*.templ
+
+# Tests y artefactos de test
+**/*_test.go
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Binarios y salidas de compilación locales
+/bin/
+/dist/
+/my_sqlc_project
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go workspace
+go.work
+go.work.sum
+
+# Editor / SO
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
