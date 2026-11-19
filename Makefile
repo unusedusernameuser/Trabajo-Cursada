@@ -2,7 +2,7 @@
 .env:
 	@test -f .env.example || { echo "Falta .env.example: no se puede crear .env"; exit 1; }
 	@cp .env.example .env
-	@echo "==> .env no existe: se creo a partir de .env.exaple"
+	@echo "==> .env no existe: se creo a partir de .env.example"
 
 include .env
 export
