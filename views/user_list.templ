@@ -29,11 +29,12 @@ templ UserList(users []db.ListUsersRow) {
 					<tbody>
 						for _, u := range users {
 							<tr>
-								<td>{ "@" + u.Handle }</td>
+								<td><a href={ templ.SafeURL(userTasksURL(u.ID)) }>{ "@" + u.Handle }</a></td>
 								<td>{ u.DisplayName }</td>
 								<td>{ u.Email }</td>
 								<td>{ formatDate(u.CreatedAt) }</td>
 								<td>
+									<a href={ templ.SafeURL(userTasksURL(u.ID)) } role="button" class="outline">Tareas</a>
 									<form method="post" action={ templ.SafeURL(userDeleteURL(u.ID)) } onsubmit="return confirm('¿Eliminar este usuario?')">
 										<button type="submit" class="secondary outline">Eliminar</button>
 									</form>

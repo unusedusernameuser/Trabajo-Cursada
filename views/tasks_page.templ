@@ -1,0 +1,287 @@
+package views
+
+// TasksPage es la página de tareas de un usuario: carpetas y tags a un costado,
+// formulario de alta y lista de tareas (con filtros) en el centro.
+templ TasksPage(d TasksPageData) {
+	@Layout("Tareas de " + d.DisplayName + " · Gestor de Tareas") {
+		<header>
+			<a href="/">← Volver a usuarios</a>
+			<h1>{ "Tareas de " + d.DisplayName }</h1>
+			<p>{ "@" + d.Handle + " · " + d.Email }</p>
+		</header>
+		if d.Error != "" {
+			<p role="alert"><mark>{ d.Error }</mark></p>
+		}
+		<div class="tasks-layout">
+			<aside>
+				@FolderPanel(d)
+				@TagPanel(d)
+			</aside>
+			<section>
+				@TaskForm(d)
+				@TaskList(d)
+			</section>
+		</div>
+	}
+}
+
+// FolderPanel lista las carpetas (cada una filtra por GET) y permite crear, renombrar y borrar.
+templ FolderPanel(d TasksPageData) {
+	<article>
+		<header>
+			<h2>Carpetas</h2>
+		</header>
+		<ul class="nav-list">
+			<li>
+				<a href={ templ.SafeURL(folderToggleURL(d, "all")) } if d.Filters.Folder == "all" { aria-current="page" }>Todas ({ num(d.TotalTasks) })</a>
+			</li>
+			<li>
+				<a href={ templ.SafeURL(folderToggleURL(d, "none")) } if d.Filters.Folder == "none" { aria-current="page" }>Sin carpeta ({ num(d.WithoutFolder) })</a>
+			</li>
+			for _, f := range d.Folders {
+				<li>
+					<a href={ templ.SafeURL(folderToggleURL(d, idStr(f.ID))) } if d.Filters.Folder == idStr(f.ID) { aria-current="page" }>{ f.Name } ({ num(f.Count) })</a>
+					<details>
+						<summary>Editar</summary>
+						<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/folders/"+idStr(f.ID))) }>
+							<input type="hidden" name="back" value={ d.Filters.Query() }/>
+							<input name="folder_name" type="text" maxlength="63" autocomplete="off" value={ f.Name } required/>
+							<button type="submit" class="secondary">Renombrar</button>
+						</form>
+						<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/folders/"+idStr(f.ID)+"/delete")) } onsubmit="return confirm('¿Borrar la carpeta? Sus tareas no se borran: quedan sin carpeta.')">
+							<input type="hidden" name="back" value={ d.Filters.Query() }/>
+							<button type="submit" class="secondary outline">Borrar</button>
+						</form>
+					</details>
+				</li>
+			}
+		</ul>
+		<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/folders")) }>
+			<input type="hidden" name="back" value={ d.Filters.Query() }/>
+			<input name="folder_name" type="text" maxlength="63" autocomplete="off" placeholder="Nueva carpeta" aria-label="Nombre de la carpeta" required/>
+			<button type="submit" class="secondary">Crear carpeta</button>
+		</form>
+	</article>
+}
+
+// TagPanel lista los tags (cada uno filtra por GET) y permite crear, renombrar y borrar.
+templ TagPanel(d TasksPageData) {
+	<article>
+		<header>
+			<h2>Tags</h2>
+		</header>
+		if len(d.Tags) == 0 {
+			<p><small>Todavía no hay tags.</small></p>
+		} else {
+			<ul class="nav-list">
+				for _, t := range d.Tags {
+					<li>
+						<a href={ templ.SafeURL(tagToggleURL(d, t.ID)) } if d.Filters.Tag == t.ID { aria-current="page" }>{ t.Name } ({ num(t.Count) })</a>
+						<details>
+							<summary>Editar</summary>
+							<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tags/"+idStr(t.ID))) }>
+								<input type="hidden" name="back" value={ d.Filters.Query() }/>
+								<input name="tag_name" type="text" maxlength="63" autocomplete="off" value={ t.Name } required/>
+								<button type="submit" class="secondary">Renombrar</button>
+							</form>
+							<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tags/"+idStr(t.ID)+"/delete")) } onsubmit="return confirm('¿Borrar el tag? Se quita de todas las tareas que lo tengan.')">
+								<input type="hidden" name="back" value={ d.Filters.Query() }/>
+								<button type="submit" class="secondary outline">Borrar</button>
+							</form>
+						</details>
+					</li>
+				}
+			</ul>
+		}
+		<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tags")) }>
+			<input type="hidden" name="back" value={ d.Filters.Query() }/>
+			<input name="tag_name" type="text" maxlength="63" autocomplete="off" placeholder="Nuevo tag" aria-label="Nombre del tag" required/>
+			<button type="submit" class="secondary">Crear tag</button>
+		</form>
+	</article>
+}
+
+// TaskForm es el formulario de alta de tareas: POST /users/{id}/tasks (patrón PRG).
+templ TaskForm(d TasksPageData) {
+	<article>
+		<header>
+			<h2>Nueva tarea</h2>
+		</header>
+		<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks")) }>
+			<input type="hidden" name="back" value={ d.Filters.Query() }/>
+			<label>
+				Título
+				<input name="title" type="text" maxlength="127" autocomplete="off" value={ d.NewTask.Title } required/>
+			</label>
+			<label>
+				Descripción (opcional)
+				<textarea name="task_description" rows="2">{ d.NewTask.Description }</textarea>
+			</label>
+			<div class="grid">
+				<label>
+					Fecha límite
+					<input name="due_date" type="datetime-local" value={ d.NewTask.Due }/>
+				</label>
+				<label>
+					Prioridad
+					<select name="task_priority">
+						@PriorityOptions(d.NewTask.Priority)
+					</select>
+				</label>
+				<label>
+					Carpeta
+					<select name="folder_id">
+						@FolderOptions(d.Folders, d.NewTask.FolderID)
+					</select>
+				</label>
+			</div>
+			<fieldset>
+				<legend>Tags</legend>
+				if len(d.Tags) == 0 {
+					<small>Creá un tag desde el panel lateral para usarlo acá.</small>
+				} else {
+					for _, t := range d.Tags {
+						<label>
+							<input type="checkbox" name="tag_ids" value={ idStr(t.ID) } checked?={ hasID(d.NewTask.TagIDs, t.ID) }/>
+							{ t.Name }
+						</label>
+					}
+				}
+			</fieldset>
+			<button type="submit">Crear tarea</button>
+		</form>
+	</article>
+}
+
+// TaskList muestra los filtros (estado y prioridad por GET) y las tareas visibles.
+templ TaskList(d TasksPageData) {
+	<article>
+		<header>
+			<h2>Tareas ({ num(len(d.Tasks)) })</h2>
+		</header>
+		<form method="get" action={ templ.SafeURL(userPath(d.UserID, "/tasks")) }>
+			if d.Filters.Folder != "all" {
+				<input type="hidden" name="folder" value={ d.Filters.Folder }/>
+			}
+			if d.Filters.Tag != 0 {
+				<input type="hidden" name="tag" value={ idStr(d.Filters.Tag) }/>
+			}
+			<div class="grid">
+				<label>
+					Estado
+					<select name="status">
+						<option value="" selected?={ d.Filters.Status == "" }>Todos</option>
+						<option value="pendiente" selected?={ d.Filters.Status == "pendiente" }>Pendiente</option>
+						<option value="en_progreso" selected?={ d.Filters.Status == "en_progreso" }>En progreso</option>
+						<option value="completada" selected?={ d.Filters.Status == "completada" }>Completada</option>
+					</select>
+				</label>
+				<label>
+					Prioridad
+					<select name="priority">
+						<option value="" selected?={ d.Filters.Priority == "" }>Todas</option>
+						<option value="alta" selected?={ d.Filters.Priority == "alta" }>Alta</option>
+						<option value="media" selected?={ d.Filters.Priority == "media" }>Media</option>
+						<option value="baja" selected?={ d.Filters.Priority == "baja" }>Baja</option>
+					</select>
+				</label>
+				<button type="submit" class="secondary">Filtrar</button>
+			</div>
+		</form>
+		if d.FilterSummary != "" {
+			<p><small>{ d.FilterSummary }</small></p>
+		}
+		if d.Filters.Active() {
+			<p><a href={ templ.SafeURL(userPath(d.UserID, "/tasks")) }>Quitar todos los filtros</a></p>
+		}
+		if len(d.Tasks) == 0 {
+			<p>{ d.EmptyText }</p>
+		} else {
+			for _, t := range d.Tasks {
+				@TaskItem(d, t)
+			}
+		}
+	</article>
+}
+
+// TaskItem dibuja una tarea con todas sus acciones. Cada acción es un <form> que hace POST
+// y termina en un redirect a la lista (sin JavaScript).
+templ TaskItem(d TasksPageData, t TaskRow) {
+	<article class={ taskClass(t) }>
+		<header>
+			<strong class="task-title">{ t.Title }</strong>
+			<small>{ " · " + priorityLabel(t.Priority) + " · " + statusLabel(t.Status) }</small>
+			if t.DueText != "" {
+				<small class={ dueClass(t) }>{ " · " + dueLabel(t) }</small>
+			}
+		</header>
+		if t.Description != "" {
+			<p>{ t.Description }</p>
+		}
+		<div class="chips">
+			for _, tg := range t.Tags {
+				<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/tags/"+idStr(tg.ID)+"/delete")) }>
+					<input type="hidden" name="back" value={ d.Filters.Query() }/>
+					<button type="submit" class="chip outline secondary" title="Quitar este tag de la tarea">{ tg.Name + " ×" }</button>
+				</form>
+			}
+		</div>
+		<div class="grid">
+			<form method="post" role="group" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/status")) }>
+				<input type="hidden" name="back" value={ d.Filters.Query() }/>
+				<select name="task_status" aria-label="Estado de la tarea">
+					<option value="pendiente" selected?={ t.Status == "pendiente" }>Pendiente</option>
+					<option value="en_progreso" selected?={ t.Status == "en_progreso" }>En progreso</option>
+					<option value="completada" selected?={ t.Status == "completada" }>Completada</option>
+				</select>
+				<button type="submit" class="secondary">Cambiar estado</button>
+			</form>
+			<form method="post" role="group" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/folder")) }>
+				<input type="hidden" name="back" value={ d.Filters.Query() }/>
+				<select name="folder_id" aria-label="Carpeta de la tarea">
+					@FolderOptions(d.Folders, t.FolderID)
+				</select>
+				<button type="submit" class="secondary">Mover</button>
+			</form>
+		</div>
+		if len(t.FreeTags) > 0 {
+			<form method="post" role="group" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/tags")) }>
+				<input type="hidden" name="back" value={ d.Filters.Query() }/>
+				<select name="tag_id" aria-label="Tag a agregar" required>
+					<option value="">Elegí un tag…</option>
+					for _, tg := range t.FreeTags {
+						<option value={ idStr(tg.ID) }>{ tg.Name }</option>
+					}
+				</select>
+				<button type="submit" class="secondary">Agregar tag</button>
+			</form>
+		}
+		<footer class="task-actions">
+			<form class="inline" method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/status")) }>
+				<input type="hidden" name="back" value={ d.Filters.Query() }/>
+				<input type="hidden" name="task_status" value={ toggleStatus(t) }/>
+				<button type="submit" class="outline">{ toggleLabel(t) }</button>
+			</form>
+			<a href={ templ.SafeURL(editURL(d, t)) } role="button" class="secondary outline">Editar</a>
+			<form class="inline" method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/delete")) } onsubmit="return confirm('¿Eliminar la tarea? Esta acción no se puede deshacer.')">
+				<input type="hidden" name="back" value={ d.Filters.Query() }/>
+				<button type="submit" class="secondary outline">Eliminar</button>
+			</form>
+		</footer>
+	</article>
+}
+
+// PriorityOptions son las <option> de un <select> de prioridad.
+templ PriorityOptions(selected string) {
+	<option value="baja" selected?={ selected == "baja" }>Baja</option>
+	<option value="media" selected?={ selected == "media" }>Media</option>
+	<option value="alta" selected?={ selected == "alta" }>Alta</option>
+}
+
+// FolderOptions son las <option> de un <select> de carpeta (la primera es "Sin carpeta").
+templ FolderOptions(folders []NamedRef, selected int32) {
+	<option value="" selected?={ selected == 0 }>Sin carpeta</option>
+	for _, f := range folders {
+		<option value={ idStr(f.ID) } selected?={ f.ID == selected }>{ f.Name }</option>
+	}
+}

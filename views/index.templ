@@ -7,7 +7,7 @@ templ IndexPage(users []db.ListUsersRow, form UserFormValues) {
 	@Layout("Gestor de Tareas · Usuarios") {
 		<header>
 			<h1>Gestor de Tareas</h1>
-			<p>Creá y administrá los usuarios que van a organizar sus tareas, carpetas y grupos.</p>
+			<p>Creá y administrá los usuarios que van a organizar sus tareas, carpetas y tags. Desde la lista, cada usuario tiene su propia página de tareas.</p>
 		</header>
 		<div class="grid">
 			@UserForm(form)

@@ -10,6 +10,22 @@ templ Layout(title string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title }</title>
 			<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"/>
+			<style>
+				.tasks-layout { display: grid; grid-template-columns: minmax(14rem, 18rem) 1fr; gap: 1.5rem; align-items: start; }
+				@media (max-width: 768px) { .tasks-layout { grid-template-columns: 1fr; } }
+				.nav-list { list-style: none; padding: 0; margin: 0 0 1rem; }
+				.nav-list li { margin-bottom: 0.5rem; }
+				.nav-list details { margin: 0.25rem 0 0; }
+				.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.5rem 0; }
+				.chips form { margin: 0; }
+				.chip { width: auto; margin: 0; padding: 0.1rem 0.6rem; font-size: 0.8rem; }
+				.inline { display: inline; margin: 0; }
+				.inline button { width: auto; margin: 0; }
+				.task.done .task-title { text-decoration: line-through; opacity: 0.7; }
+				.overdue { color: var(--pico-del-color); }
+				.task-actions { display: flex; gap: 0.5rem; align-items: center; }
+				.task-actions a, .task-actions button { width: auto; margin: 0; }
+			</style>
 		</head>
 		<body>
 			<main class="container">

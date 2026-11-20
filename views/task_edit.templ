@@ -1,0 +1,44 @@
+package views
+
+// TaskEditPage reemplaza al diálogo modal de edición del cliente JS:
+// es una página con un formulario que hace POST /users/{id}/tasks/{id}.
+templ TaskEditPage(d TaskEditData) {
+	@Layout("Editar tarea · Gestor de Tareas") {
+		<header>
+			<a href={ templ.SafeURL(TasksURL(d.UserID, d.Filters)) }>← Volver a las tareas</a>
+			<h1>Editar tarea</h1>
+		</header>
+		<article>
+			<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(d.TaskID))) }>
+				if d.Error != "" {
+					<p role="alert"><mark>{ d.Error }</mark></p>
+				}
+				<input type="hidden" name="back" value={ d.Filters.Query() }/>
+				<label>
+					Título
+					<input name="title" type="text" maxlength="127" autocomplete="off" value={ d.Title } required/>
+				</label>
+				<label>
+					Descripción
+					<textarea name="task_description" rows="3">{ d.Description }</textarea>
+				</label>
+				<div class="grid">
+					<label>
+						Fecha límite
+						<input name="due_date" type="datetime-local" value={ d.Due }/>
+					</label>
+					<label>
+						Prioridad
+						<select name="task_priority">
+							@PriorityOptions(d.Priority)
+						</select>
+					</label>
+				</div>
+				<div class="task-actions">
+					<a href={ templ.SafeURL(TasksURL(d.UserID, d.Filters)) } role="button" class="secondary outline">Cancelar</a>
+					<button type="submit">Guardar</button>
+				</div>
+			</form>
+		</article>
+	}
+}
