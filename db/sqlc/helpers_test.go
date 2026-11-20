@@ -58,21 +58,7 @@ func createTestTag(t *testing.T, q *Queries, userID int32, name string) Tag {
 	return tag
 }
 
-func createTestGroup(t *testing.T, q *Queries, ownerID int32, name string) CreateGroupRow {
-	t.Helper()
-
-	g, err := q.CreateGroup(context.Background(), CreateGroupParams{
-		OwnerID:          ownerID,
-		GroupName:        name,
-		GroupDescription: sql.NullString{String: "descripción de prueba", Valid: true},
-	})
-	if err != nil {
-		t.Fatalf("CreateGroup falló: %v", err)
-	}
-	return g
-}
-
-// createTestTask crea una tarea simple (sin carpeta, grupo, asignado ni fecha).
+// createTestTask crea una tarea simple (sin carpeta, asignado ni fecha).
 func createTestTask(t *testing.T, q *Queries, userID int32, title string) Task {
 	t.Helper()
 
