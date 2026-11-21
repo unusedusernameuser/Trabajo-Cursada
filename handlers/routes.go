@@ -15,9 +15,9 @@ func Register(queries *db.Queries) {
 
 	// Lista + formulario
 	http.HandleFunc("GET /{$}", h.index)
-	// Alta y baja: ambas terminan en un redirect a /
+	// Alta y baja con HTMX: devuelven fragmentos de HTML, sin redirect
 	http.HandleFunc("POST /users", h.create)
-	http.HandleFunc("POST /users/{id}/delete", h.delete)
+	http.HandleFunc("DELETE /users/{id}", h.delete)
 
 	registerTaskRoutes(queries)
 

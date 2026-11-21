@@ -1,14 +1,11 @@
 package handlers
 
 import (
-	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/jackc/pgx/v5/pgconn"
 
 	db "my_sqlc_project/db/sqlc"
 	"my_sqlc_project/views"
@@ -43,8 +40,9 @@ func (h *userHandler) renderIndex(w http.ResponseWriter, r *http.Request, status
 }
 
 // POST /users
-// Patrón Post/Redirect/Get: si se guarda, redirige a GET / para que el navegador
-// pida la página de nuevo (así recargarla no reenvía el formulario).
+// Con HTMX ya no hay redirección: después de guardar se vuelve a consultar la lista completa
+// y se devuelve únicamente el componente UserList, que HTMX coloca en el target (#user-list).
+// Se agrega un formulario vacío marcado como OOB (hx-swap-oob) para limpiar los campos.
 func (h *userHandler) create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "formulario inválido", http.StatusBadRequest)
@@ -62,7 +60,7 @@ func (h *userHandler) create(w http.ResponseWriter, r *http.Request) {
 
 	if msg := validateUser(form, password); msg != "" {
 		form.Error = msg
-		h.renderIndex(w, r, http.StatusBadRequest, form)
+		h.renderFormError(w, r, http.StatusBadRequest, form)
 		return
 	}
 
@@ -73,10 +71,9 @@ func (h *userHandler) create(w http.ResponseWriter, r *http.Request) {
 		PasswordHash: password,
 	})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" { // unique_violation
+		if pgCode(err) == pgUniqueViolation {
 			form.Error = "ya existe un usuario con ese handle o email"
-			h.renderIndex(w, r, http.StatusConflict, form)
+			h.renderFormError(w, r, http.StatusConflict, form)
 			return
 		}
 		log.Printf("error al crear usuario: %v", err)
@@ -84,12 +81,42 @@ func (h *userHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Se vuelve a consultar la lista completa y se devuelve solo ese fragmento.
+	users, err := h.queries.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("error al listar usuarios: %v", err)
+		http.Error(w, "error interno del servidor", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := views.UserList(users).Render(r.Context(), w); err != nil {
+		log.Printf("error al renderizar la lista: %v", err)
+		return
+	}
+	// Formulario limpio, intercambiado fuera de banda.
+	if err := views.UserForm(views.UserFormValues{OOB: true}).Render(r.Context(), w); err != nil {
+		log.Printf("error al renderizar el formulario: %v", err)
+	}
 }
 
-// POST /users/{id}/delete
-// Los formularios HTML solo soportan GET y POST, por eso el borrado es un POST.
-// También termina con un redirect a /.
+// renderFormError responde a un alta rechazada (400/409) con el formulario y su mensaje.
+// El target del formulario es #user-list, así que HX-Retarget / HX-Reswap indican a HTMX
+// que reemplace #user-form (el formulario) y no la lista.
+func (h *userHandler) renderFormError(w http.ResponseWriter, r *http.Request, status int, form views.UserFormValues) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("HX-Retarget", "#user-form")
+	w.Header().Set("HX-Reswap", "outerHTML")
+	w.WriteHeader(status)
+	if err := views.UserForm(form).Render(r.Context(), w); err != nil {
+		log.Printf("error al renderizar el formulario: %v", err)
+	}
+}
+
+// DELETE /users/{id}
+// Borra el usuario y responde 200 sin contenido para el elemento: HTMX reemplaza el target
+// (la fila, "closest tr") por nada y la fila desaparece del DOM. Lo único que viaja es el
+// contador del título, marcado hx-swap-oob, para que no quede desactualizado.
 func (h *userHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 32)
 	if err != nil || id <= 0 {
@@ -103,7 +130,17 @@ func (h *userHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	users, err := h.queries.ListUsers(r.Context())
+	if err != nil {
+		// El usuario ya se borró: la fila debe desaparecer igual (200 vacío).
+		log.Printf("error al listar usuarios: %v", err)
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := views.UserCountOOB(len(users)).Render(r.Context(), w); err != nil {
+		log.Printf("error al renderizar el contador: %v", err)
+	}
 }
 
 // validateUser aplica las mismas reglas que schema.sql: no vacío y largo máximo.
