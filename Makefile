@@ -7,6 +7,10 @@
 include .env
 export
 
+# Se deriva de DB_* para que no haya valores duplicados (ni puertos desalineados con docker-compose).
+DATABASE_URL := postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
+export DATABASE_URL
+
 COMPOSE      := docker compose
 WAIT_TIMEOUT := 60
 HURL_FILE    := request.hurl

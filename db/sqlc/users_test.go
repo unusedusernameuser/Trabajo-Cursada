@@ -18,7 +18,7 @@ func getTestDB(t *testing.T) *sql.DB {
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://postgres:postgres@localhost:5432/my_sqlc_project?sslmode=disable"
+		dsn = "postgres://user:password@localhost:5432/webapp_db?sslmode=disable"
 	}
 
 	conn, err := sql.Open("pgx", dsn)

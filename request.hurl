@@ -431,3 +431,24 @@ body not contains "@tareas"
 
 GET http://localhost:8080/users/{{user_id}}/tasks
 HTTP 404
+
+# 28. Limpieza: se eliminan los usuarios creados en los tests 2 y 6 para poder volver a correr este archivo
+GET http://localhost:8080/
+HTTP 200
+[Captures]
+juan_id: regex "href=\"/users/(\\d+)/tasks\">@juan</a>"
+xss_id: regex "href=\"/users/(\\d+)/tasks\">@xss</a>"
+
+DELETE http://localhost:8080/users/{{juan_id}}
+HX-Request: true
+HTTP 200
+
+DELETE http://localhost:8080/users/{{xss_id}}
+HX-Request: true
+HTTP 200
+
+GET http://localhost:8080/
+HTTP 200
+[Asserts]
+body not contains "@juan"
+body not contains "@xss"

@@ -28,12 +28,12 @@ type UserFormValues struct {
 	OOB bool
 }
 
-// formatDate muestra una fecha dd/mm/aaaa o vacío si la columna es NULL.
+// formatDate muestra una fecha dd/mm/aaaa (en la zona horaria de la app) o vacío si la columna es NULL.
 func formatDate(t sql.NullTime) string {
 	if !t.Valid {
 		return ""
 	}
-	return t.Time.Format("02/01/2006")
+	return t.Time.In(Location).Format("02/01/2006")
 }
 
 // userDeleteURL es la ruta DELETE /users/{id} que usa hx-delete.

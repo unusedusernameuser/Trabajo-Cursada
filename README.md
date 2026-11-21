@@ -147,7 +147,7 @@ Para levantar todo en contenedores (Postgres + servidor): `make docker-up`.
 
 `make test` corre todas.
 
-Prueba manual: abrir `http://localhost:8080`, crear un usuario (la página se recarga completa y aparece en la lista), repetir el handle (aparece el error), entrar a sus tareas, crear carpetas, tags y tareas, probar los filtros, eliminar un usuario y visitar `/nada` (página 404).
+Prueba manual: abrir `http://localhost:8080`, crear un usuario (aparece en la lista y el formulario se limpia, sin recargar la página), repetir el handle (aparece el error), entrar a sus tareas, crear carpetas, tags y tareas, probar los filtros, eliminar un usuario y visitar `/nada` (página 404).
 
 ## Tecnologías
 
