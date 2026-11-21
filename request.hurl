@@ -1,7 +1,8 @@
 # Pruebas de la aplicación renderizada en el servidor (HTML, no JSON).
 # Requiere el servidor corriendo en http://localhost:8080 (ver README).
 # Ejecutar con:  hurl --test request.hurl
-# Hurl no sigue redirects por defecto, así que se verifica el 303 y el header Location.
+# El alta y la baja de usuarios usan HTMX: el servidor devuelve fragmentos de HTML (sin redirect)
+# y los requests llevan el header HX-Request que agrega HTMX en el navegador.
 
 # 1. La página principal responde HTML con el formulario
 GET http://localhost:8080/
@@ -10,19 +11,29 @@ HTTP 200
 header "Content-Type" contains "text/html"
 body contains "Nuevo usuario"
 body contains "pico.min.css"
+body contains "htmx.org"
+body contains "hx-post=\"/users\""
+body contains "id=\"user-list\""
 
-# 2. Crear un usuario -> 303 y redirect a /
+# 2. Crear un usuario -> 200 con solo el fragmento de la lista (sin <html>) y el form limpio (OOB)
 POST http://localhost:8080/users
+HX-Request: true
 [Form]
 handle: Juan
 display_name: Juan Pérez
 email: Juan@Example.com
 password: hash_de_ejemplo
-HTTP 303
+HTTP 200
 [Asserts]
-header "Location" == "/"
+header "Location" not exists
+body contains "id=\"user-list\""
+body contains "@juan"
+body contains "juan@example.com"
+body contains "hx-swap-oob"
+body not contains "<html"
+body not contains "hash_de_ejemplo"
 
-# 3. Tras el redirect, GET / muestra el usuario (handle y email en minúsculas)
+# 3. GET / también muestra el usuario (handle y email en minúsculas)
 GET http://localhost:8080/
 HTTP 200
 [Asserts]
@@ -31,8 +42,9 @@ body contains "Juan Pérez"
 body contains "juan@example.com"
 body not contains "hash_de_ejemplo"
 
-# 4. Datos inválidos (handle vacío) -> 400 y se vuelve a mostrar el formulario con el error
+# 4. Datos inválidos (handle vacío) -> 400, el formulario con el error y HX-Retarget al formulario
 POST http://localhost:8080/users
+HX-Request: true
 [Form]
 handle:
 display_name: Sin Handle
@@ -40,11 +52,14 @@ email: sin.handle@example.com
 password: hash_de_ejemplo
 HTTP 400
 [Asserts]
+header "HX-Retarget" == "#user-form"
+header "HX-Reswap" == "outerHTML"
 body contains "obligatorio"
 body contains "Sin Handle"
 
 # 5. Handle repetido -> 409 con mensaje de error
 POST http://localhost:8080/users
+HX-Request: true
 [Form]
 handle: juan
 display_name: Otro Juan
@@ -52,6 +67,7 @@ email: otro@example.com
 password: hash_de_ejemplo
 HTTP 409
 [Asserts]
+header "HX-Retarget" == "#user-form"
 body contains "ya existe un usuario"
 
 # 6. Los datos se escapan (no se interpretan como HTML)
@@ -61,7 +77,10 @@ handle: xss
 display_name: <script>alert(1)</script>
 email: xss@example.com
 password: hash_de_ejemplo
-HTTP 303
+HTTP 200
+[Asserts]
+body not contains "<script>alert(1)</script>"
+body contains "&lt;script&gt;"
 
 GET http://localhost:8080/
 HTTP 200
@@ -69,15 +88,21 @@ HTTP 200
 body not contains "<script>alert(1)</script>"
 body contains "&lt;script&gt;"
 
-# 7. Eliminar un id que no existe -> también 303 (DELETE idempotente, como en la entrega anterior)
-POST http://localhost:8080/users/2147483647/delete
-HTTP 303
+# 7. Eliminar un id que no existe -> 200 (DELETE idempotente); solo viaja el contador OOB
+DELETE http://localhost:8080/users/2147483647
+HX-Request: true
+HTTP 200
 [Asserts]
-header "Location" == "/"
+body not contains "<tr"
+body contains "user-count"
 
 # 8. Id inválido al eliminar -> 400
-POST http://localhost:8080/users/abc/delete
+DELETE http://localhost:8080/users/abc
 HTTP 400
+
+# 8b. La vieja ruta POST /users/{id}/delete ya no existe (ahora es 404)
+POST http://localhost:8080/users/2147483647/delete
+HTTP 404
 
 # 9. Una ruta inexistente muestra la página 404
 GET http://localhost:8080/nada
@@ -97,7 +122,7 @@ handle: tareas
 display_name: Usuario de Tareas
 email: tareas@example.com
 password: hash_de_ejemplo
-HTTP 303
+HTTP 200
 
 GET http://localhost:8080/
 HTTP 200
@@ -393,8 +418,16 @@ body not contains "Oficina"
 body not contains "urgente"
 
 # 27. Se elimina el usuario de prueba (también se borran sus tareas, carpetas y tags)
-POST http://localhost:8080/users/{{user_id}}/delete
-HTTP 303
+DELETE http://localhost:8080/users/{{user_id}}
+HX-Request: true
+HTTP 200
+[Asserts]
+body not contains "<tr"
+
+GET http://localhost:8080/
+HTTP 200
+[Asserts]
+body not contains "@tareas"
 
 GET http://localhost:8080/users/{{user_id}}/tasks
 HTTP 404
