@@ -1,13 +1,18 @@
 package views
 
 // UserForm renderiza el formulario para crear un usuario.
-// Es un <form> clásico: hace POST /users y el servidor responde con un redirect (PRG).
+// HTMX envía POST /users y coloca la respuesta (la lista actualizada) en #user-list.
+// Si el servidor rechaza el envío, responde con este mismo componente (con el error)
+// y redirige el reemplazo a #user-form con los headers HX-Retarget / HX-Reswap.
+// En un alta exitosa la respuesta incluye además un formulario vacío con OOB=true,
+// que HTMX intercambia fuera de banda para limpiar los campos.
+// El atributo method/action se mantiene como respaldo si HTMX no está disponible.
 templ UserForm(f UserFormValues) {
-	<article>
+	<article id="user-form" { oobAttrs(f.OOB)... }>
 		<header>
 			<h2>Nuevo usuario</h2>
 		</header>
-		<form method="post" action="/users">
+		<form method="post" action="/users" hx-post="/users" hx-target="#user-list" hx-swap="outerHTML">
 			if f.Error != "" {
 				<p role="alert"><mark>{ f.Error }</mark></p>
 			}

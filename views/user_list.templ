@@ -8,9 +8,9 @@ import (
 
 // UserList recibe el slice que devuelve ListUsers de sqlc y renderiza la tabla.
 templ UserList(users []db.ListUsersRow) {
-	<article>
+	<article id="user-list">
 		<header>
-			<h2>Usuarios ({ strconv.Itoa(len(users)) })</h2>
+			<h2>Usuarios (<span id="user-count">{ strconv.Itoa(len(users)) }</span>)</h2>
 		</header>
 		if len(users) == 0 {
 			<p>Todavía no hay usuarios. Creá el primero con el formulario.</p>
@@ -28,16 +28,20 @@ templ UserList(users []db.ListUsersRow) {
 					</thead>
 					<tbody>
 						for _, u := range users {
-							<tr>
+							<tr id={ "user-" + strconv.Itoa(int(u.ID)) }>
 								<td><a href={ templ.SafeURL(userTasksURL(u.ID)) }>{ "@" + u.Handle }</a></td>
 								<td>{ u.DisplayName }</td>
 								<td>{ u.Email }</td>
 								<td>{ formatDate(u.CreatedAt) }</td>
 								<td>
 									<a href={ templ.SafeURL(userTasksURL(u.ID)) } role="button" class="outline">Tareas</a>
-									<form method="post" action={ templ.SafeURL(userDeleteURL(u.ID)) } onsubmit="return confirm('¿Eliminar este usuario?')">
-										<button type="submit" class="secondary outline">Eliminar</button>
-									</form>
+									<button
+										class="secondary outline"
+										hx-delete={ userDeleteURL(u.ID) }
+										hx-target="closest tr"
+										hx-swap="outerHTML"
+										hx-confirm="¿Eliminar este usuario?"
+									>Eliminar</button>
 								</td>
 							</tr>
 						}
@@ -46,4 +50,10 @@ templ UserList(users []db.ListUsersRow) {
 			</div>
 		}
 	</article>
+}
+
+// UserCountOOB es el contador del título marcado con hx-swap-oob: HTMX lo reemplaza en la página
+// aunque no sea el target. Lo usa la respuesta de DELETE para no dejar el número desactualizado.
+templ UserCountOOB(n int) {
+	<span id="user-count" hx-swap-oob="true">{ strconv.Itoa(n) }</span>
 }

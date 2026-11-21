@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 	_ "time/tzdata" // incluye la base de zonas horarias en el binario (la imagen alpine no la trae)
+
+	"github.com/a-h/templ"
 )
 
 // ---- Usuarios ----------------------------------------------------------------
@@ -21,6 +23,9 @@ type UserFormValues struct {
 	DisplayName string
 	Email       string
 	Error       string
+	// OOB marca el formulario con hx-swap-oob: así la respuesta de un alta exitosa puede
+	// reemplazarlo por uno vacío mientras el target principal recibe la lista.
+	OOB bool
 }
 
 // formatDate muestra una fecha dd/mm/aaaa o vacío si la columna es NULL.
@@ -31,8 +36,9 @@ func formatDate(t sql.NullTime) string {
 	return t.Time.Format("02/01/2006")
 }
 
+// userDeleteURL es la ruta DELETE /users/{id} que usa hx-delete.
 func userDeleteURL(id int32) string {
-	return "/users/" + strconv.Itoa(int(id)) + "/delete"
+	return "/users/" + strconv.Itoa(int(id))
 }
 
 // userTasksURL es la página de tareas de un usuario.
@@ -163,7 +169,7 @@ type TaskRow struct {
 	Priority    string
 	DueText     string // fecha límite ya formateada ("" si no tiene)
 	Overdue     bool
-	FolderID    int32     // 0 = sin carpeta
+	FolderID    int32      // 0 = sin carpeta
 	Tags        []NamedRef // tags que ya tiene
 	FreeTags    []NamedRef // tags del usuario que todavía no tiene
 }
@@ -306,4 +312,12 @@ func priorityLabel(p string) string {
 		return "Alta"
 	}
 	return "Media"
+}
+
+// oobAttrs devuelve hx-swap-oob="true" cuando el componente se envía fuera de banda.
+func oobAttrs(oob bool) templ.Attributes {
+	if !oob {
+		return nil
+	}
+	return templ.Attributes{"hx-swap-oob": "true"}
 }
