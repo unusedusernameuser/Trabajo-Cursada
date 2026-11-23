@@ -114,9 +114,8 @@ func (h *userHandler) renderFormError(w http.ResponseWriter, r *http.Request, st
 }
 
 // DELETE /users/{id}
-// Borra el usuario y responde 200 sin contenido para el elemento: HTMX reemplaza el target
-// (la fila, "closest tr") por nada y la fila desaparece del DOM. Lo único que viaja es el
-// contador del título, marcado hx-swap-oob, para que no quede desactualizado.
+// Borra el usuario y responde 200 con el cuerpo vacío: HTMX reemplaza el target (la fila,
+// "closest tr") por nada y la fila desaparece del DOM.
 func (h *userHandler) delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 32)
 	if err != nil || id <= 0 {
@@ -130,17 +129,7 @@ func (h *userHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := h.queries.ListUsers(r.Context())
-	if err != nil {
-		// El usuario ya se borró: la fila debe desaparecer igual (200 vacío).
-		log.Printf("error al listar usuarios: %v", err)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := views.UserCountOOB(len(users)).Render(r.Context(), w); err != nil {
-		log.Printf("error al renderizar el contador: %v", err)
-	}
+	w.WriteHeader(http.StatusOK)
 }
 
 // validateUser aplica las mismas reglas que schema.sql: no vacío y largo máximo.
