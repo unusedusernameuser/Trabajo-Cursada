@@ -17,17 +17,28 @@ HURL_FILE    := request.hurl
 # Reintentos por si la app todavia esta arrancando cuando empieza hurl
 HURL_RETRY   := 15
 
-.PHONY: all test hurl deps templ sqlc generate build run db-up docker-down docker-up clean
+.PHONY: all run-app test hurl deps templ sqlc generate build run db-up docker-down docker-up clean
 
 # Punto de entrada por defecto: corre todo el ciclo completo.
 all: test
+
+## ---- Comando principal: run-app ---------------------------------------
+# Hace TODO en un solo paso:
+#   1) Previas:     borra contenedores y volumenes, genera codigo (sqlc + templ),
+#                   compila, levanta Postgres y espera a que este saludable.
+#   2) Ejecucion:   corre el servidor en http://localhost:8080 (Ctrl+C para terminar).
+#   3) Posteriores: borra contenedores y volumenes (tambien si se corta con Ctrl+C o falla).
+run-app: docker-down build db-up
+	@trap '$(MAKE) --no-print-directory docker-down' EXIT INT TERM; \
+	echo "==> Iniciando el servidor en http://localhost:8080 (Ctrl+C para terminar)..."; \
+	DATABASE_URL="$(DATABASE_URL)" go run .
 
 ## ---- 1) Tareas previas ------------------------------------------------
 
 SQLC_VERSION := v1.31.1
 
-# Una sola vez (o al clonar el repo): registra templ como dependencia y herramienta
-# del módulo (go.mod / go.sum). Después, `go tool templ` usa esa misma versión.
+# OPCIONAL (no hace falta para ejecutar la app): go.mod ya declara templ como herramienta
+# (directiva `tool`). Solo sirve para actualizar templ a la ultima version.
 deps:
 	@echo "==> Instalando templ como dependencia del módulo..."
 	go get github.com/a-h/templ@latest

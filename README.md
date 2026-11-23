@@ -104,8 +104,9 @@ Trabajo-Cursada-tp6/
 
 - [Go](https://go.dev/dl/) 1.27 o superior
 - [Docker](https://www.docker.com/) y Docker Compose
-- [Hurl](https://hurl.dev/docs/installation.html) (solo para las pruebas HTTP)
+- [Hurl](https://hurl.dev/docs/installation.html) (solo para `make test`; no hace falta para `make run-app`)
 - `make`
+- Puertos libres: `8080` (aplicación) y `5432` (Postgres; configurable con `DB_PORT` en `.env`)
 
 templ y sqlc no hay que instalarlos: el Makefile los ejecuta con `go tool` / `go run`.
 
@@ -115,29 +116,61 @@ templ y sqlc no hay que instalarlos: el Makefile los ejecuta con `go tool` / `go
 git clone <URL-del-repositorio>
 cd Trabajo-Cursada-tp6
 
-make deps   # una sola vez: agrega templ a go.mod / go.sum
-make run    # genera código (sqlc + templ), levanta Postgres y corre el servidor
+make run-app
 ```
 
-Abrir **http://localhost:8080**. Con `Ctrl+C` se detiene el servidor; `make docker-down` apaga Postgres y borra el volumen (los usuarios cargados).
+Un solo comando. `make run-app` hace, en orden:
 
-Para levantar todo en contenedores (Postgres + servidor): `make docker-up`.
+1. **Tareas previas**: borra contenedores y volúmenes anteriores, genera el código (`sqlc` y `templ`), compila el proyecto, levanta Postgres con Docker Compose y espera a que esté saludable (`pg_isready`).
+2. **Ejecución**: corre el servidor en **http://localhost:8080**.
+3. **Tareas posteriores**: al terminar (con `Ctrl+C`, o si algo falla) borra los contenedores y los volúmenes, de modo que la base queda vacía en la próxima ejecución.
+
+Si no existe `.env`, el Makefile lo crea a partir de `.env.example`. No hace falta instalar nada más que los requisitos de abajo. La aplicación carga Pico.css y HTMX desde CDN, así que se necesita conexión a internet para ver los estilos y las acciones de HTMX.
+
+> Tanto el código generado como el `.env` se crean solos y no se versionan. No hay archivos `.js` en el repositorio.
+
+Para levantar todo en contenedores (Postgres + servidor), sin limpieza automática: `make docker-up` (y `make docker-down` para apagar).
 
 ### Targets del Makefile
 
 | Comando            | Descripción                                                                         |
 |--------------------|-------------------------------------------------------------------------------------|
-| `make deps`        | Registra templ como dependencia del módulo (una sola vez)                           |
+| `make run-app`     | **Comando principal**: limpia, genera, compila, levanta Postgres, corre la app y limpia al terminar |
+| `make deps`        | Opcional: actualiza templ a la última versión (`go.mod` ya lo declara como `tool`)  |
 | `make templ`       | `templ generate`: compila `views/*.templ` a `views/*_templ.go`                      |
 | `make sqlc`        | Genera el código Go a partir de las queries SQL                                     |
 | `make generate`    | `sqlc` + `templ`                                                                    |
 | `make build`       | Genera el código y compila el proyecto                                              |
 | `make db-up`       | Levanta solo Postgres (Docker) y espera a que esté listo                            |
-| `make run`         | `generate` + `db-up` + `go run .` (servidor local en el puerto 8080)                |
+| `make run`         | Desarrollo: `generate` + `db-up` + `go run .`; no borra nada al terminar            |
 | `make docker-up`   | Genera el código y levanta Postgres y la aplicación en contenedores                 |
 | `make test`        | Ciclo completo: DB limpia, build, contenedores, `go test`, `hurl` y limpieza        |
 | `make hurl`        | Solo `request.hurl` (requiere la aplicación levantada)                              |
 | `make docker-down` | Elimina contenedores y volúmenes                                                    |
+| `make clean`       | Alias de `docker-down`                                                              |
+
+## Modelo de datos
+
+Definido en `db/schema/schema.sql` (Docker lo aplica al crear el volumen) y consumido por sqlc.
+
+```
+users 1───* folders          (folders.user_id, ON DELETE CASCADE)
+users 1───* tags             (tags.user_id,    ON DELETE CASCADE)
+users 1───* tasks            (tasks.user_id,   ON DELETE CASCADE)
+users 1───* tasks            (tasks.assigned_to, ON DELETE SET NULL)
+folders 1───* tasks          (tasks.folder_id, ON DELETE SET NULL)
+tasks *───* tags             (tabla tasks_tags, ON DELETE CASCADE en ambos lados)
+```
+
+| Tabla        | Campos principales                                                                                  | Restricciones                                                              |
+|--------------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
+| `users`      | `id`, `handle`, `display_name`, `email`, `password_hash`, `created_at`, `updated_at`                | `handle` y `email` únicos, en minúsculas y no vacíos                       |
+| `folders`    | `id`, `user_id`, `folder_name`                                                                      | `(user_id, folder_name)` único                                             |
+| `tags`       | `id`, `user_id`, `tag_name`                                                                         | `(user_id, tag_name)` único                                                |
+| `tasks`      | `id`, `user_id`, `folder_id`, `assigned_to`, `title`, `task_description`, `due_date`, `task_status`, `task_priority`, `attachment_path`, `completed_at` | estado ∈ `pendiente`/`en_progreso`/`completada`; prioridad ∈ `baja`/`media`/`alta`; `completed_at` solo si está completada |
+| `tasks_tags` | `task_id`, `tag_id`                                                                                 | clave primaria compuesta                                                   |
+
+Consecuencias: al borrar un usuario se borran sus carpetas, tags y tareas; al borrar una carpeta sus tareas quedan sin carpeta; al borrar un tag se quita de las tareas. `assigned_to` y `attachment_path` existen en el esquema pero la interfaz actual no los usa.
 
 ## Pruebas
 
@@ -158,7 +191,7 @@ Go 1.27 (`net/http`), **templ**, **Pico.css**, PostgreSQL 16, **sqlc**, **pgx**,
 - **Contraseña**: se guarda tal cual en `password_hash`, como en la entrega anterior; en una aplicación real se hashearía en el servidor (por ejemplo con bcrypt).
 - **Borrado con `DELETE`**: HTMX permite enviar `DELETE` desde un botón (`hx-delete`), por eso la baja de usuarios usa `DELETE /users/{id}`. En la página de tareas se mantienen los `POST`.
 - **Sin API JSON**: se eliminó la API REST de la entrega anterior (usuarios, carpetas, tags y tareas) y el cliente JS (`static/`). Las queries de sqlc y sus tests se mantienen; la API anterior sigue en el historial de git.
-- **Acciones sin JavaScript**: lo que antes eran `PUT`/`DELETE` con `fetch` ahora son formularios `POST` (una ruta por acción). En la página de tareas los únicos fragmentos de JS son los `confirm()` de los botones de borrado; en usuarios la confirmación la hace `hx-confirm`.
+- **Acciones sin JavaScript**: lo que antes eran `PUT`/`DELETE` con `fetch` ahora son formularios `POST` (una ruta por acción). En la página de tareas los únicos fragmentos de JS son los `confirm()` inline (`onsubmit`) de los botones de borrado; no hay ningún archivo `.js`; en usuarios la confirmación la hace `hx-confirm`.
 - **Filtros en la URL**: así la vista es enlazable y no hace falta estado en el cliente. Las tareas se leen una vez con `ListTasksByUser` y se filtran en Go; los tags de cada tarea se arman con una consulta `ListTasksByTag` por tag.
 - **Edición en otra página**: el diálogo modal pasó a `GET /users/{user_id}/tasks/{id}/edit`, que conserva los filtros para volver a la misma lista.
 - **Zona horaria**: los `<input type="datetime-local">` no llevan zona, así que el servidor interpreta y muestra las fechas en `America/Argentina/Buenos_Aires` (configurable con la variable de entorno `APP_TIMEZONE`). La base de zonas horarias va incluida en el binario (`time/tzdata`).
