@@ -48,7 +48,7 @@ templ FolderPanel(d TasksPageData) {
 							<input name="folder_name" type="text" maxlength="63" autocomplete="off" value={ f.Name } required/>
 							<button type="submit" class="secondary">Renombrar</button>
 						</form>
-						<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/folders/"+idStr(f.ID)+"/delete")) } onsubmit="return confirm('¿Borrar la carpeta? Sus tareas no se borran: quedan sin carpeta.')">
+						<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/folders/"+idStr(f.ID)+"/delete")) } hx-boost="true" hx-confirm="¿Borrar la carpeta? Sus tareas no se borran: quedan sin carpeta.">
 							<input type="hidden" name="back" value={ d.Filters.Query() }/>
 							<button type="submit" class="secondary outline">Borrar</button>
 						</form>
@@ -84,7 +84,7 @@ templ TagPanel(d TasksPageData) {
 								<input name="tag_name" type="text" maxlength="63" autocomplete="off" value={ t.Name } required/>
 								<button type="submit" class="secondary">Renombrar</button>
 							</form>
-							<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tags/"+idStr(t.ID)+"/delete")) } onsubmit="return confirm('¿Borrar el tag? Se quita de todas las tareas que lo tengan.')">
+							<form method="post" action={ templ.SafeURL(userPath(d.UserID, "/tags/"+idStr(t.ID)+"/delete")) } hx-boost="true" hx-confirm="¿Borrar el tag? Se quita de todas las tareas que lo tengan.">
 								<input type="hidden" name="back" value={ d.Filters.Query() }/>
 								<button type="submit" class="secondary outline">Borrar</button>
 							</form>
@@ -263,7 +263,7 @@ templ TaskItem(d TasksPageData, t TaskRow) {
 				<button type="submit" class="outline">{ toggleLabel(t) }</button>
 			</form>
 			<a href={ templ.SafeURL(editURL(d, t)) } role="button" class="secondary outline">Editar</a>
-			<form class="inline" method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/delete")) } onsubmit="return confirm('¿Eliminar la tarea? Esta acción no se puede deshacer.')">
+			<form class="inline" method="post" action={ templ.SafeURL(userPath(d.UserID, "/tasks/"+idStr(t.ID)+"/delete")) } hx-boost="true" hx-confirm="¿Eliminar la tarea? Esta acción no se puede deshacer.">
 				<input type="hidden" name="back" value={ d.Filters.Query() }/>
 				<button type="submit" class="secondary outline">Eliminar</button>
 			</form>

@@ -10,7 +10,7 @@ import (
 templ UserList(users []db.ListUsersRow) {
 	<article id="user-list">
 		<header>
-			<h2>Usuarios (<span id="user-count">{ strconv.Itoa(len(users)) }</span>)</h2>
+			<h2>Usuarios</h2>
 		</header>
 		if len(users) == 0 {
 			<p>Todavía no hay usuarios. Creá el primero con el formulario.</p>
@@ -50,10 +50,4 @@ templ UserList(users []db.ListUsersRow) {
 			</div>
 		}
 	</article>
-}
-
-// UserCountOOB es el contador del título marcado con hx-swap-oob: HTMX lo reemplaza en la página
-// aunque no sea el target. Lo usa la respuesta de DELETE para no dejar el número desactualizado.
-templ UserCountOOB(n int) {
-	<span id="user-count" hx-swap-oob="true">{ strconv.Itoa(n) }</span>
 }
