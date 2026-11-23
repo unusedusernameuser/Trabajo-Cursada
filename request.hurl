@@ -88,13 +88,12 @@ HTTP 200
 body not contains "<script>alert(1)</script>"
 body contains "&lt;script&gt;"
 
-# 7. Eliminar un id que no existe -> 200 (DELETE idempotente); solo viaja el contador OOB
+# 7. Eliminar un id que no existe -> 200 (DELETE idempotente) con el cuerpo vacío
 DELETE http://localhost:8080/users/2147483647
 HX-Request: true
 HTTP 200
 [Asserts]
-body not contains "<tr"
-body contains "user-count"
+body == ""
 
 # 8. Id inválido al eliminar -> 400
 DELETE http://localhost:8080/users/abc

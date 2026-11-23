@@ -54,7 +54,7 @@ El script de HTMX se carga en el `<head>` de `layout.templ`. Las dos acciones de
 
 **Baja**
 1. Cada fila tiene un botón con `hx-delete="/users/{id}" hx-target="closest tr" hx-swap="outerHTML" hx-confirm="..."`.
-2. El handler llama a `DeleteUser` y responde `200`. Lo único que envía es el contador del título (`hx-swap-oob`) para que el número "Usuarios (N)" no quede desactualizado; la fila se reemplaza por nada.
+2. El handler llama a `DeleteUser` y responde `200` con el cuerpo vacío; HTMX reemplaza la fila por nada.
 
 La página principal (`GET /`) sigue siendo una página completa. La página de tareas de cada usuario no cambió (formularios `POST` + redirect 303).
 
@@ -191,7 +191,7 @@ Go 1.27 (`net/http`), **templ**, **Pico.css**, PostgreSQL 16, **sqlc**, **pgx**,
 - **Contraseña**: se guarda tal cual en `password_hash`, como en la entrega anterior; en una aplicación real se hashearía en el servidor (por ejemplo con bcrypt).
 - **Borrado con `DELETE`**: HTMX permite enviar `DELETE` desde un botón (`hx-delete`), por eso la baja de usuarios usa `DELETE /users/{id}`. En la página de tareas se mantienen los `POST`.
 - **Sin API JSON**: se eliminó la API REST de la entrega anterior (usuarios, carpetas, tags y tareas) y el cliente JS (`static/`). Las queries de sqlc y sus tests se mantienen; la API anterior sigue en el historial de git.
-- **Acciones sin JavaScript**: lo que antes eran `PUT`/`DELETE` con `fetch` ahora son formularios `POST` (una ruta por acción). En la página de tareas los únicos fragmentos de JS son los `confirm()` inline (`onsubmit`) de los botones de borrado; no hay ningún archivo `.js`; en usuarios la confirmación la hace `hx-confirm`.
+- **Acciones sin JavaScript**: lo que antes eran `PUT`/`DELETE` con `fetch` ahora son formularios `POST` (una ruta por acción). No hay JavaScript propio, ni archivos `.js` ni código inline: las confirmaciones de borrado usan `hx-confirm` (en la página de tareas, los formularios de borrado llevan además `hx-boost="true"` para que HTMX gestione el envío y pida la confirmación).
 - **Filtros en la URL**: así la vista es enlazable y no hace falta estado en el cliente. Las tareas se leen una vez con `ListTasksByUser` y se filtran en Go; los tags de cada tarea se arman con una consulta `ListTasksByTag` por tag.
 - **Edición en otra página**: el diálogo modal pasó a `GET /users/{user_id}/tasks/{id}/edit`, que conserva los filtros para volver a la misma lista.
 - **Zona horaria**: los `<input type="datetime-local">` no llevan zona, así que el servidor interpreta y muestra las fechas en `America/Argentina/Buenos_Aires` (configurable con la variable de entorno `APP_TIMEZONE`). La base de zonas horarias va incluida en el binario (`time/tzdata`).
